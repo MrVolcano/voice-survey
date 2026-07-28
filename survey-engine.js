@@ -1,369 +1,20 @@
-<!DOCTYPE html>
-<html lang="en-GB">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Voice Feedback - Prototype</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #14181F;
-    --surface: #1E2530;
-    --surface-raised: #262E3B;
-    --text: #F5F1E8;
-    --text-dim: #B8BFCC;
-    --gold: #E8A33D;
-    --teal: #5FBDB0;
-    --rose: #D97878;
-    --focus: #F5F1E8;
-    --radius: 18px;
-  }
-
-  * { box-sizing: border-box; }
-
-  html, body {
-    margin: 0;
-    padding: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Atkinson Hyperlegible', Arial, sans-serif;
-    min-height: 100vh;
-  }
-
-  body {
-    display: flex;
-    justify-content: center;
-    padding: 24px 16px 60px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-  }
-
-  .app {
-    width: 100%;
-    max-width: 560px;
-  }
-
-  header.top {
-    text-align: center;
-    margin-bottom: 28px;
-  }
-
-  header.top h1 {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin: 0 0 4px;
-    letter-spacing: 0.01em;
-  }
-
-  header.top p {
-    color: var(--text-dim);
-    margin: 0;
-    font-size: 0.95rem;
-  }
-
-  .progress-track {
-    height: 6px;
-    background: var(--surface);
-    border-radius: 999px;
-    margin: 20px 0 8px;
-    overflow: hidden;
-  }
-
-  .progress-fill {
-    height: 100%;
-    background: var(--gold);
-    border-radius: 999px;
-    transition: width 0.4s ease;
-    width: 0%;
-  }
-
-  .progress-label {
-    font-size: 0.85rem;
-    color: var(--text-dim);
-    text-align: right;
-    margin-bottom: 20px;
-  }
-
-  .card {
-    background: var(--surface);
-    border-radius: var(--radius);
-    padding: 32px 24px;
-    text-align: center;
-  }
-
-  /* the orb: the one signature visual element, gives a sighted observer
-     (or low-vision user with residual sight) a clear read on system state
-     without relying on it — every state is also spoken and printed */
-  .orb-wrap {
-    display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
-  }
-
-  .orb {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, var(--surface-raised), var(--surface));
-    border: 3px solid var(--text-dim);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: border-color 0.3s ease, box-shadow 0.3s ease;
-  }
-
-  .orb .icon { font-size: 2.4rem; }
-
-  .orb.speaking {
-    border-color: var(--teal);
-    box-shadow: 0 0 0 0 rgba(95,189,176,0.6);
-    animation: pulse-teal 1.4s ease-in-out infinite;
-  }
-
-  .orb.listening {
-    border-color: var(--gold);
-    box-shadow: 0 0 0 0 rgba(232,163,61,0.6);
-    animation: pulse-gold 1.1s ease-in-out infinite;
-  }
-
-  @keyframes pulse-teal {
-    0% { box-shadow: 0 0 0 0 rgba(95,189,176,0.45); }
-    70% { box-shadow: 0 0 0 22px rgba(95,189,176,0); }
-    100% { box-shadow: 0 0 0 0 rgba(95,189,176,0); }
-  }
-
-  @keyframes pulse-gold {
-    0% { box-shadow: 0 0 0 0 rgba(232,163,61,0.45); }
-    70% { box-shadow: 0 0 0 22px rgba(232,163,61,0); }
-    100% { box-shadow: 0 0 0 0 rgba(232,163,61,0); }
-  }
-
-  .state-label {
-    font-size: 1rem;
-    color: var(--text-dim);
-    margin-bottom: 18px;
-    min-height: 1.4em;
-  }
-
-  .question-text {
-    font-size: 1.4rem;
-    font-weight: 700;
-    line-height: 1.4;
-    margin: 0 0 24px;
-  }
-
-  .options {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-
-  .option-btn {
-    background: var(--surface-raised);
-    color: var(--text);
-    border: 2px solid transparent;
-    border-radius: 12px;
-    padding: 18px 16px;
-    font-size: 1.05rem;
-    font-family: inherit;
-    text-align: left;
-    cursor: pointer;
-    min-height: 60px;
-  }
-
-  .option-btn:hover { background: #303A49; }
-
-  .option-btn:focus-visible,
-  button:focus-visible,
-  textarea:focus-visible,
-  input:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 2px;
-  }
-
-  .option-btn.chosen {
-    border-color: var(--gold);
-    background: #33291A;
-  }
-
-  textarea.free-text {
-    width: 100%;
-    min-height: 110px;
-    background: var(--surface-raised);
-    color: var(--text);
-    border: 2px solid transparent;
-    border-radius: 12px;
-    padding: 14px;
-    font-family: inherit;
-    font-size: 1.05rem;
-    margin-bottom: 20px;
-    resize: vertical;
-  }
-
-  .btn-row {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .btn {
-    font-family: inherit;
-    font-size: 1.05rem;
-    font-weight: 700;
-    border: none;
-    border-radius: 999px;
-    padding: 16px 28px;
-    cursor: pointer;
-    min-height: 56px;
-    min-width: 120px;
-  }
-
-  .btn-primary { background: var(--gold); color: #1B1400; }
-  .btn-secondary { background: var(--surface-raised); color: var(--text); }
-  .btn-quiet {
-    background: transparent;
-    color: var(--text-dim);
-    text-decoration: underline;
-    padding: 10px 12px;
-    min-width: unset;
-    min-height: unset;
-    font-weight: 400;
-    font-size: 0.95rem;
-  }
-
-  .transcript-box {
-    background: var(--surface-raised);
-    border-radius: 12px;
-    padding: 14px 16px;
-    margin-bottom: 20px;
-    text-align: left;
-    font-size: 1rem;
-    color: var(--text-dim);
-  }
-  .transcript-box strong { color: var(--text); }
-
-  .summary-list {
-    text-align: left;
-    margin-bottom: 24px;
-  }
-
-  .summary-item {
-    border-bottom: 1px solid var(--surface-raised);
-    padding: 14px 0;
-  }
-  .summary-item:last-child { border-bottom: none; }
-  .summary-item .q { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 4px; }
-  .summary-item .a { font-size: 1.05rem; font-weight: 700; }
-
-  .support-note {
-    background: var(--surface-raised);
-    border-left: 3px solid var(--rose);
-    border-radius: 8px;
-    padding: 12px 14px;
-    font-size: 0.9rem;
-    color: var(--text-dim);
-    margin-top: 18px;
-    text-align: left;
-  }
-
-  .sr-only {
-    position: absolute;
-    width: 1px; height: 1px;
-    padding: 0; margin: -1px;
-    overflow: hidden;
-    clip: rect(0,0,0,0);
-    white-space: nowrap; border: 0;
-  }
-
-  footer.notes {
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 0.8rem;
-    margin-top: 28px;
-  }
-</style>
-</head>
-<body>
-
-<div class="app">
-  <header class="top">
-    <h1>Voice Feedback</h1>
-    <p>A talk-and-listen way to answer training feedback questions</p>
-  </header>
-
-  <div id="progressWrap" style="display:none;">
-    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
-    <div class="progress-label" id="progressLabel"></div>
-  </div>
-
-  <main class="card" id="card">
-    <!-- content injected by JS -->
-  </main>
-
-  <div aria-live="polite" class="sr-only" id="liveRegion"></div>
-
-  <footer class="notes">
-    <div id="compatNote"></div>
-    <button class="btn-quiet" id="listVoicesBtn" style="margin-top:8px;">Show all voices this browser found</button>
-    <div id="voiceList" style="text-align:left; margin-top:8px; display:none;"></div>
-  </footer>
-</div>
-
-<script>
+// Shared voice-survey engine. Each survey page sets window.SURVEY_QUESTIONS,
+// window.SURVEY_ROUTE_ID and window.SURVEY_ROUTE_LABEL (see questions-*.js)
+// before loading this file.
 (function () {
-  const questions = [
-    {
-      id: 1,
-      type: 'choice',
-      text: 'Compared to before the training, how confident do you feel using your device now?',
-      options: ['Much more confident', 'Somewhat more confident', 'About the same', 'Less confident']
-    },
-    {
-      id: 2,
-      type: 'text',
-      text: 'What part of the training was most useful to you? Tell me in your own words.'
-    },
-    {
-      id: 3,
-      type: 'choice',
-      text: 'How was the pace of the session?',
-      options: ['Too slow', 'Just right', 'Too fast']
-    },
-    {
-      id: 4,
-      type: 'choice',
-      text: 'Did the trainer explain things in a way that was easy to follow?',
-      options: ['Yes, always', 'Mostly', 'Sometimes', 'Rarely']
-    },
-    {
-      id: 5,
-      type: 'choice',
-      text: 'Would you recommend this training to a friend?',
-      options: ['Yes', 'Maybe', 'No']
-    },
-    {
-      id: 6,
-      type: 'text',
-      text: 'What was the most difficult part of the session?'
-    },
-    {
-      id: 7,
-      type: 'choice',
-      text: 'How likely are you to keep practising what you learned?',
-      options: ['Very likely', 'Somewhat likely', 'Not likely']
-    },
-    {
-      id: 8,
-      type: 'text',
-      text: 'Is there anything else you would like to tell us?'
-    }
-  ];
+  // Paste a Power Automate "When an HTTP request is received" trigger URL
+  // here to also send each response into an Excel table on OneDrive/
+  // SharePoint. Left blank, the webhook step is skipped entirely and only
+  // local storage + manual download are used. See README for setup steps.
+  const POWER_AUTOMATE_URL = '';
+
+  const LOCAL_STORAGE_KEY = 'voiceSurveyResponses';
+  const MAX_STORED_RESPONSES = 100;
+  const PREFERRED_VOICE_KEY = 'voiceSurveyPreferredVoice';
+
+  const questions = window.SURVEY_QUESTIONS || [];
+  const routeId = window.SURVEY_ROUTE_ID || 'unknown';
+  const routeLabel = window.SURVEY_ROUTE_LABEL || '';
 
   const card = document.getElementById('card');
   const progressWrap = document.getElementById('progressWrap');
@@ -388,6 +39,7 @@
 
   const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
   const speechSupported = !!SpeechRecognitionAPI && !!window.speechSynthesis;
+  const ttsSupported = !!window.speechSynthesis;
 
   // iOS only grants microphone-based speech recognition to Safari itself -
   // Chrome, Edge and every other iPhone/iPad browser use the same rendering
@@ -407,7 +59,6 @@
 
   let current = 0;
   const answers = [];
-  let pendingAnswer = null;
 
   // Natural voices (Edge's "Online (Natural)" set, and equivalents on other
   // browsers) sound far less robotic than the default local voice. They load
@@ -415,8 +66,18 @@
   // retry a few times rather than relying on a single event that not every
   // browser fires reliably.
   let naturalVoice = null;
+  let selectedVoice = null;
   let voiceLabel = 'standard';
   let voiceAttempts = 0;
+
+  function voiceKey(v) { return v.name + '|' + v.lang; }
+
+  function getVoicePool() {
+    if (!window.speechSynthesis) return [];
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+    return englishVoices.length ? englishVoices : voices;
+  }
 
   function pickBestVoice() {
     if (!window.speechSynthesis) { updateCompatNote(); return; }
@@ -433,8 +94,7 @@
       return;
     }
 
-    const englishVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-    const pool = englishVoices.length ? englishVoices : voices;
+    const pool = getVoicePool();
 
     // Prefer anything explicitly flagged "Natural" (Edge), then fall back to
     // other known cloud/enhanced voice naming patterns other browsers use.
@@ -448,7 +108,19 @@
 
     naturalVoice = natural || gbFirst || null;
     voiceLabel = natural ? 'natural' : 'standard';
+
+    // A voice picked by hand (this session or a previous visit, via the
+    // dropdown on the start screen) wins over the auto-pick above, as long
+    // as it's actually present in this browser's voice list.
+    let preferred = null;
+    try {
+      const savedKey = localStorage.getItem(PREFERRED_VOICE_KEY);
+      if (savedKey) preferred = pool.find(v => voiceKey(v) === savedKey) || null;
+    } catch (e) { /* localStorage unavailable - just use the auto-pick */ }
+    selectedVoice = preferred || naturalVoice;
+
     updateCompatNote();
+    populateVoiceSelect();
   }
 
   function updateCompatNote() {
@@ -486,9 +158,9 @@
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-GB';
     utter.rate = 0.98;
-    if (naturalVoice) {
-      utter.voice = naturalVoice;
-      utter.lang = naturalVoice.lang;
+    if (selectedVoice) {
+      utter.voice = selectedVoice;
+      utter.lang = selectedVoice.lang;
     }
     utter.onend = () => { if (onEnd) onEnd(); };
     utter.onerror = () => { if (onEnd) onEnd(); };
@@ -524,6 +196,33 @@
     return bestScore > 0 ? best : null;
   }
 
+  let handsFree = !isIOSSafari;
+
+  // Rebuilds the start-screen voice dropdown in place from whatever voices
+  // are currently available, without touching the rest of the intro screen.
+  // Safe to call even when that dropdown isn't on screen right now.
+  function populateVoiceSelect() {
+    const select = document.getElementById('voiceSelect');
+    if (!select) return;
+    const pool = getVoicePool();
+    if (!pool.length) {
+      select.innerHTML = '<option value="">Loading voices...</option>';
+      select.disabled = true;
+      return;
+    }
+    select.disabled = false;
+    select.innerHTML = pool.map((v, i) => {
+      const label = `${v.name} (${v.lang})${/natural|online|enhanced|premium/i.test(v.name) ? ' - natural' : ''}`;
+      return `<option value="${i}">${label}</option>`;
+    }).join('');
+    let currentIndex = selectedVoice ? pool.findIndex(v => voiceKey(v) === voiceKey(selectedVoice)) : -1;
+    if (currentIndex < 0) {
+      currentIndex = 0;
+      selectedVoice = pool[0];
+    }
+    select.value = String(currentIndex);
+  }
+
   function renderIntro() {
     const inFrame = window.top !== window.self;
     const frameWarning = (speechSupported && inFrame)
@@ -544,6 +243,13 @@
         <input type="checkbox" id="handsFreeToggle" ${handsFree ? 'checked' : ''} style="width:22px; height:22px;">
         Start listening automatically after each question
       </label>` : ''}
+      ${ttsSupported ? `
+      <label style="display:block; margin-bottom:24px; font-size:1rem; color:var(--text-dim); text-align:left;">
+        Voice used to read questions aloud
+        <select id="voiceSelect" style="display:block; width:100%; margin-top:8px; background:var(--surface-raised); color:var(--text); border:2px solid transparent; border-radius:12px; padding:12px; font-family:inherit; font-size:1.05rem;">
+          <option value="">Loading voices...</option>
+        </select>
+      </label>` : ''}
       <div class="btn-row">
         <button class="btn btn-primary" id="startBtn">Start survey</button>
       </div>
@@ -555,19 +261,27 @@
         handsFree = e.target.checked;
       });
     }
+    if (ttsSupported) {
+      populateVoiceSelect();
+      document.getElementById('voiceSelect').addEventListener('change', (e) => {
+        const pool = getVoicePool();
+        const chosen = pool[+e.target.value];
+        if (!chosen) return;
+        selectedVoice = chosen;
+        try { localStorage.setItem(PREFERRED_VOICE_KEY, voiceKey(chosen)); } catch (err) { /* ignore */ }
+      });
+    }
     document.getElementById('startBtn').addEventListener('click', () => {
       current = 0;
+      answers.length = 0;
       askQuestion();
     });
   }
-
-  let handsFree = !isIOSSafari;
 
   function askQuestion() {
     if (current >= questions.length) { renderSummary(); return; }
     updateProgress();
     const q = questions[current];
-    pendingAnswer = null;
 
     let body = `${setOrb('idle')}<p class="question-text">${q.text}</p>`;
 
@@ -652,9 +366,6 @@
   function startListening(q) {
     if (!recognizer) return;
 
-    // Voice recognition needs a secure context (https, or a file opened
-    // directly rather than run inside an embedded/sandboxed preview).
-    const insecure = location.protocol !== 'https:' && location.hostname !== 'localhost' && location.protocol !== 'file:';
     const inFrame = window.top !== window.self;
 
     setOrbState('listening');
@@ -731,8 +442,79 @@
     askQuestion();
   }
 
+  // ---- Storage: local device only by default, plus a best-effort webhook ----
+
+  function buildRecord() {
+    return {
+      timestamp: new Date().toISOString(),
+      route: routeId,
+      answers: answers.slice()
+    };
+  }
+
+  function saveResponseLocally(record) {
+    let stored = [];
+    try {
+      stored = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+    } catch (e) {
+      stored = [];
+    }
+    stored.push(record);
+    if (stored.length > MAX_STORED_RESPONSES) {
+      stored = stored.slice(stored.length - MAX_STORED_RESPONSES);
+    }
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stored));
+  }
+
+  // Best-effort only: sent as text/plain (not application/json) so the
+  // cross-origin POST counts as a CORS "simple request" and skips the
+  // preflight OPTIONS call that a Power Automate HTTP trigger doesn't answer
+  // by default. Power Automate still parses the body as JSON on its side.
+  // Reading the response cross-origin may fail without CORS headers on the
+  // flow's reply even though the row was written successfully - that's
+  // expected here, not a bug, so failures are swallowed silently.
+  function sendToExcelWebhook(record) {
+    if (!POWER_AUTOMATE_URL) return;
+    fetch(POWER_AUTOMATE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(record)
+    }).catch(() => { /* best-effort; local storage already has the data */ });
+  }
+
+  function escapeCsvCell(value) {
+    const str = String(value == null ? '' : value);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  }
+
+  function recordsToCsv(records) {
+    const rows = [['Timestamp', 'Route', 'Question', 'Answer']];
+    records.forEach(r => {
+      r.answers.forEach(a => {
+        rows.push([r.timestamp, r.route, a.question, a.answer]);
+      });
+    });
+    return rows.map(row => row.map(escapeCsvCell).join(',')).join('\r\n');
+  }
+
+  function downloadCsv(csv, filename) {
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function renderSummary() {
     progressWrap.style.display = 'none';
+    const record = buildRecord();
+    saveResponseLocally(record);
+    sendToExcelWebhook(record);
+
     let body = `${setOrb('idle')}<p class="question-text">All done - thank you</p>`;
     body += `<div class="summary-list">`;
     answers.forEach(a => {
@@ -740,23 +522,44 @@
     });
     body += `</div>`;
     body += `<div class="btn-row">
-      <button class="btn btn-primary" id="finishBtn">Submit feedback</button>
+      <button class="btn btn-primary" id="downloadBtn">Download my answers</button>
+      <button class="btn btn-secondary" id="restartBtn">Start again</button>
     </div>
     <div class="support-note">
-      Prototype note: this demo does not send data anywhere yet. In the working version,
-      this is the point where answers would be posted into SurveyMonkey.
+      Prototype note: your answers are saved on this device (browser local storage) and, if a
+      storage webhook has been configured, sent to an Excel table on the organisation's
+      Microsoft 365 tenant. Nothing is sent anywhere else.
     </div>`;
     card.innerHTML = body;
-    speak('That is everything. Here is a summary of your answers. Tap submit feedback when you are ready.');
-    document.getElementById('finishBtn').addEventListener('click', () => {
-      card.innerHTML = `${setOrb('idle')}<p class="question-text">Thank you - your feedback has been recorded.</p>`;
-      speak('Thank you. Your feedback has been recorded.');
+    speak('That is everything. Here is a summary of your answers. Your answers have been saved.');
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+      downloadCsv(recordsToCsv([record]), `voice-survey-${routeId}-${record.timestamp.replace(/[:.]/g, '-')}.csv`);
     });
+    document.getElementById('restartBtn').addEventListener('click', renderIntro);
   }
 
-  renderIntro();
-})();
-</script>
+  // Exposed so index.html's "export everything saved on this device" link
+  // can reuse the same CSV logic without duplicating it.
+  window.voiceSurveyStorage = {
+    exportAllLocalResponses() {
+      let stored = [];
+      try {
+        stored = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+      } catch (e) {
+        stored = [];
+      }
+      if (!stored.length) {
+        window.alert('No responses are saved on this device yet.');
+        return;
+      }
+      downloadCsv(recordsToCsv(stored), `voice-survey-all-responses-${Date.now()}.csv`);
+    }
+  };
 
-</body>
-</html>
+  if (card) {
+    renderIntro();
+    if (progressLabel) {
+      progressLabel.setAttribute('data-route', routeLabel);
+    }
+  }
+})();

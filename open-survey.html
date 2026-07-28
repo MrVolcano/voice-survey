@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice Feedback - Open-ended</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="survey-styles.css">
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <h1>Voice Feedback - Open-ended</h1>
+    <p>Outcomes and new abilities are asked about as two open questions</p>
+  </header>
+
+  <div id="progressWrap" style="display:none;">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel"></div>
+  </div>
+
+  <main class="card" id="card">
+    <!-- content injected by JS -->
+  </main>
+
+  <div aria-live="polite" class="sr-only" id="liveRegion"></div>
+
+  <footer class="notes">
+    <p><a href="index.html" style="color:var(--text-dim);">&larr; Back to prototype overview</a></p>
+    <div id="compatNote"></div>
+    <button class="btn-quiet" id="listVoicesBtn" style="margin-top:8px;">Show all voices this browser found</button>
+    <div id="voiceList" style="text-align:left; margin-top:8px; display:none;"></div>
+  </footer>
+</div>
+
+<script src="questions-open.js"></script>
+<script src="survey-engine.js"></script>
+
+</body>
+</html>
