@@ -295,7 +295,10 @@ textarea.free-text {
 }
 
 .route-card a.btn {
-  display: inline-block;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
   text-decoration: none;
   text-align: center;
 }
