@@ -224,6 +224,14 @@
     select.value = String(currentIndex);
   }
 
+  function beginSurvey() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (recognizer) { try { recognizer.abort(); } catch (e) { /* not listening - fine */ } }
+    current = 0;
+    answers.length = 0;
+    askQuestion();
+  }
+
   function renderIntro() {
     const inFrame = window.top !== window.self;
     const frameWarning = (speechSupported && inFrame)
@@ -232,13 +240,12 @@
     const iosWarning = isIOSOtherBrowser
       ? `<div class="support-note">On iPhone and iPad, voice answers only work in Safari. This looks like a different browser, so questions will still be read aloud but spoken answers won't be picked up - please open this page in Safari, or use the on-screen options instead.</div>`
       : '';
+    const introText = speechSupported
+      ? `There are ${questions.length} short questions, read aloud with voice or on-screen answers. Say "start survey", or tap the button, to begin.`
+      : `There are ${questions.length} short questions, read aloud with on-screen answers. Tap the button to begin.`;
     card.innerHTML = `
       ${setOrb('idle')}
-      <p style="font-size:1.05rem; line-height:1.6; margin-bottom:24px;">
-        There are ${questions.length} short questions. For each one I will read it aloud,
-        then listen for your answer. You can also just tap the options on screen at any time -
-        voice is optional, never required.
-      </p>
+      <p style="font-size:1.05rem; line-height:1.6; margin-bottom:24px;">${introText}</p>
       ${speechSupported ? `
       <label style="display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:24px; font-size:1rem; color:var(--text-dim); cursor:pointer;">
         <input type="checkbox" id="handsFreeToggle" ${handsFree ? 'checked' : ''} style="width:22px; height:22px;">
@@ -272,11 +279,13 @@
         try { localStorage.setItem(PREFERRED_VOICE_KEY, voiceKey(chosen)); } catch (err) { /* ignore */ }
       });
     }
-    document.getElementById('startBtn').addEventListener('click', () => {
-      current = 0;
-      answers.length = 0;
-      askQuestion();
-    });
+    document.getElementById('startBtn').addEventListener('click', beginSurvey);
+
+    if (ttsSupported) {
+      speak(introText, () => {
+        if (speechSupported) startListeningForIntro();
+      });
+    }
   }
 
   function askQuestion() {
@@ -409,6 +418,51 @@
         // Speaking the message first guarantees the previous recognition
         // session has fully ended before we start a new one.
         speak(msg, () => startListening(q, opts));
+      }
+    };
+    recognizer.onend = () => {
+      if (card.querySelector('.orb.listening')) setOrbState('idle');
+    };
+  }
+
+  // Listens on the intro screen for the "start survey" voice command.
+  function startListeningForIntro() {
+    if (!recognizer) return;
+
+    const inFrame = window.top !== window.self;
+
+    setOrbState('listening');
+    announce('Listening for the start command');
+    clearMicError();
+
+    try {
+      recognizer.start();
+    } catch (e) {
+      setOrbState('idle');
+      showMicError('Could not start listening: ' + e.message);
+      return;
+    }
+
+    recognizer.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setOrbState('idle');
+      clearMicError();
+      if (/\bstart\b/i.test(transcript)) {
+        beginSurvey();
+      } else {
+        speak('Sorry, I did not catch that. Say start survey to begin.', () => startListeningForIntro());
+      }
+    };
+    recognizer.onerror = (event) => {
+      setOrbState('idle');
+      let msg = ERROR_MESSAGES[event.error] || ('Voice recognition error: ' + event.error);
+      if (event.error === 'not-allowed' && inFrame) {
+        msg = ERROR_MESSAGES['service-not-allowed'];
+      }
+      showMicError(msg);
+      announce(msg);
+      if (RETRYABLE_ERRORS.has(event.error)) {
+        speak(msg, () => startListeningForIntro());
       }
     };
     recognizer.onend = () => {
