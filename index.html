@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Voice Feedback - Prototypes</title>
+<title>Voice Feedback Survey</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -13,53 +13,36 @@
 
 <div class="app">
   <header class="top">
-    <h1>Voice Feedback prototypes</h1>
-    <p>Two versions of the same post-training feedback survey, read aloud and answered by voice or by tapping on screen</p>
+    <h1>Voice Feedback Survey</h1>
   </header>
 
-  <main class="card" style="text-align:left;">
-    <p style="font-size:1.05rem; line-height:1.6;">
-      Both prototypes ask the same core questions from the real training feedback survey.
-      They differ only in how they handle the two question types that suit voice input
-      worst: a long list of yes/no outcome questions, and a long checklist of new abilities.
-      Try both to compare how they feel to sit through.
-    </p>
+  <main class="card">
+    <p class="intro-lead">Pick a version to start.</p>
 
     <div class="route-list">
       <div class="route-card">
-        <h2>Full detail</h2>
-        <p>Every outcome (confidence, independence, isolation, and so on) and every new
-          ability from the real survey is asked about individually. Most faithful to the
-          original survey, but noticeably longer - around 30 questions in total.</p>
-        <a class="btn btn-primary" href="full-survey.html">Try the full-detail version</a>
+        <h2>Long version</h2>
+        <p>Every question, one at a time (~30 questions).</p>
+        <a class="btn btn-primary" href="full-survey.html">Long version</a>
       </div>
       <div class="route-card">
-        <h2>Open-ended</h2>
-        <p>The same outcomes and new abilities are instead covered by two open questions
-          ("what's changed for you?" / "what can you do now?"), keeping the whole survey to
-          around 10 questions.</p>
-        <a class="btn btn-primary" href="open-survey.html">Try the open-ended version</a>
+        <h2>Short version</h2>
+        <p>Two open questions (~10 questions).</p>
+        <a class="btn btn-primary" href="open-survey.html">Short version</a>
       </div>
-    </div>
-
-    <div class="support-note">
-      <strong>Where does the data go?</strong> Each response is saved to this browser's
-      local storage on this device - nothing is sent anywhere by default. A survey summary
-      screen also offers a "Download my answers" button (a CSV file). If a Power Automate
-      webhook URL has been configured in <code>survey-engine.js</code>, responses are also
-      posted into an Excel table on the organisation's Microsoft 365 tenant. See
-      <code>README.md</code> for how to set that up.
-    </div>
-
-    <div class="btn-row" style="margin-top:20px;">
-      <button class="btn btn-secondary" id="exportAllBtn">Export everything saved on this device</button>
     </div>
   </main>
 
   <div aria-live="polite" class="sr-only" id="liveRegion"></div>
 
   <footer class="notes">
-    <div id="compatNote"></div>
+    <div class="support-note">
+      <strong>Where does the data go?</strong> Answers are saved to this device's local
+      storage. The summary screen also offers a CSV download. See <code>README.md</code>
+      for optional Excel/Power Automate setup.
+    </div>
+    <button class="btn btn-secondary" id="exportAllBtn" style="margin-top:12px;">Export everything saved on this device</button>
+    <div id="compatNote" style="margin-top:14px;"></div>
     <button class="btn-quiet" id="listVoicesBtn" style="margin-top:8px;">Show all voices this browser found</button>
     <div id="voiceList" style="text-align:left; margin-top:8px; display:none;"></div>
   </footer>

@@ -5,8 +5,8 @@ A voice-enabled survey collection prototype for AbilityNet's post-training feedb
 ## What's here
 
 - `index.html` — landing page, links to the two prototype routes below.
-- `full-survey.html` — Route A ("full detail"): every outcome and every new-ability question from the real survey is asked individually by voice. ~30 questions.
-- `open-survey.html` — Route B ("open-ended"): the same outcomes/abilities are covered by two open questions instead. ~10 questions.
+- `full-survey.html` — Long version: every outcome and every new-ability question from the real survey is asked individually by voice. ~30 questions.
+- `open-survey.html` — Short version: the same outcomes/abilities are covered by two open questions instead. ~10 questions.
 - `survey-engine.js` — shared engine (text-to-speech, speech recognition, fuzzy answer matching, rendering, storage) used by all three pages.
 - `questions-full.js` / `questions-open.js` — the two question sets, loaded before `survey-engine.js`.
 - `survey-styles.css` — shared styling.

@@ -262,6 +262,12 @@ textarea.free-text {
   text-align: left;
 }
 
+.intro-lead {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  margin: 0 0 20px;
+}
+
 .route-list {
   display: flex;
   flex-direction: column;
@@ -289,7 +295,10 @@ textarea.free-text {
 }
 
 .route-card a.btn {
-  display: inline-block;
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  margin: 0 auto;
   text-decoration: none;
   text-align: center;
 }

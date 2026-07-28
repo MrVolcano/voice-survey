@@ -124,6 +124,7 @@
   }
 
   function updateCompatNote() {
+    if (!compatNote) return;
     if (!speechSupported) {
       compatNote.textContent = 'This browser does not support voice input, so manual buttons are used instead.';
       return;
@@ -196,6 +197,26 @@
     return bestScore > 0 ? best : null;
   }
 
+  // The 10 outcome questions all share the same four answers, so instead of
+  // reading them aloud every time we just listen and match against the
+  // phrasing people are likely to use. Checked in order from most to least
+  // distinctive, since a plain "no" can otherwise show up as a false-positive
+  // substring inside other answers (eg "not relevant" contains "no").
+  function matchOutcomeAnswer(transcript, options) {
+    const t = transcript.toLowerCase();
+    const find = (label) => options.find(o => o.toLowerCase() === label) || null;
+
+    if (/\b(relevant|applicable|apply|n\/a)\b/.test(t)) {
+      return find('not relevant');
+    }
+    if (/\b(soon|unsure|undecided)\b/.test(t) || /don'?t know|do ?n't know|not sure/.test(t)) {
+      return find('too soon');
+    }
+    if (/\bno\b/.test(t)) return find('no');
+    if (/\b(yes|yeah|yep|yup)\b/.test(t)) return find('yes');
+    return null;
+  }
+
   let handsFree = !isIOSSafari;
 
   // Rebuilds the start-screen voice dropdown in place from whatever voices
@@ -223,6 +244,14 @@
     select.value = String(currentIndex);
   }
 
+  function beginSurvey() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (recognizer) { try { recognizer.abort(); } catch (e) { /* not listening - fine */ } }
+    current = 0;
+    answers.length = 0;
+    askQuestion();
+  }
+
   function renderIntro() {
     const inFrame = window.top !== window.self;
     const frameWarning = (speechSupported && inFrame)
@@ -231,13 +260,12 @@
     const iosWarning = isIOSOtherBrowser
       ? `<div class="support-note">On iPhone and iPad, voice answers only work in Safari. This looks like a different browser, so questions will still be read aloud but spoken answers won't be picked up - please open this page in Safari, or use the on-screen options instead.</div>`
       : '';
+    const introText = speechSupported
+      ? `There are ${questions.length} short questions, read aloud with voice or on-screen answers. Say "start survey", or tap the button, to begin.`
+      : `There are ${questions.length} short questions, read aloud with on-screen answers. Tap the button to begin.`;
     card.innerHTML = `
       ${setOrb('idle')}
-      <p style="font-size:1.05rem; line-height:1.6; margin-bottom:24px;">
-        There are ${questions.length} short questions. For each one I will read it aloud,
-        then listen for your answer. You can also just tap the options on screen at any time -
-        voice is optional, never required.
-      </p>
+      <p style="font-size:1.05rem; line-height:1.6; margin-bottom:24px;">${introText}</p>
       ${speechSupported ? `
       <label style="display:flex; align-items:center; gap:10px; justify-content:center; margin-bottom:24px; font-size:1rem; color:var(--text-dim); cursor:pointer;">
         <input type="checkbox" id="handsFreeToggle" ${handsFree ? 'checked' : ''} style="width:22px; height:22px;">
@@ -271,11 +299,13 @@
         try { localStorage.setItem(PREFERRED_VOICE_KEY, voiceKey(chosen)); } catch (err) { /* ignore */ }
       });
     }
-    document.getElementById('startBtn').addEventListener('click', () => {
-      current = 0;
-      answers.length = 0;
-      askQuestion();
-    });
+    document.getElementById('startBtn').addEventListener('click', beginSurvey);
+
+    if (ttsSupported) {
+      speak(introText, () => {
+        if (speechSupported) startListeningForIntro();
+      });
+    }
   }
 
   function askQuestion() {
@@ -331,7 +361,7 @@
   function readQuestionAloud(q) {
     setOrbState('speaking');
     let toSay = q.text;
-    if (q.type === 'choice') {
+    if (q.type === 'choice' && q.announceOptions !== false) {
       toSay += ' Your options are: ' + q.options.join(', ') + '.';
     }
     speak(toSay, () => {
@@ -363,8 +393,14 @@
     'aborted': 'Listening was stopped before an answer came through.'
   };
 
-  function startListening(q) {
+  // Errors where simply trying again is likely to work (nothing was heard),
+  // as opposed to ones that need the person to fix something first (blocked
+  // microphone permission, no microphone, no network).
+  const RETRYABLE_ERRORS = new Set(['no-speech']);
+
+  function startListening(q, opts) {
     if (!recognizer) return;
+    opts = opts || {};
 
     const inFrame = window.top !== window.self;
 
@@ -384,7 +420,11 @@
       const transcript = event.results[0][0].transcript;
       setOrbState('idle');
       clearMicError();
-      handleVoiceResult(q, transcript);
+      if (opts.confirmText) {
+        handleTextConfirmResult(q, transcript);
+      } else {
+        handleVoiceResult(q, transcript);
+      }
     };
     recognizer.onerror = (event) => {
       setOrbState('idle');
@@ -394,6 +434,56 @@
       }
       showMicError(msg);
       announce(msg);
+      if (RETRYABLE_ERRORS.has(event.error)) {
+        // Speaking the message first guarantees the previous recognition
+        // session has fully ended before we start a new one.
+        speak(msg, () => startListening(q, opts));
+      }
+    };
+    recognizer.onend = () => {
+      if (card.querySelector('.orb.listening')) setOrbState('idle');
+    };
+  }
+
+  // Listens on the intro screen for the "start survey" voice command.
+  function startListeningForIntro() {
+    if (!recognizer) return;
+
+    const inFrame = window.top !== window.self;
+
+    setOrbState('listening');
+    announce('Listening for the start command');
+    clearMicError();
+
+    try {
+      recognizer.start();
+    } catch (e) {
+      setOrbState('idle');
+      showMicError('Could not start listening: ' + e.message);
+      return;
+    }
+
+    recognizer.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      setOrbState('idle');
+      clearMicError();
+      if (/\bstart\b/i.test(transcript)) {
+        beginSurvey();
+      } else {
+        speak('Sorry, I did not catch that. Say start survey to begin.', () => startListeningForIntro());
+      }
+    };
+    recognizer.onerror = (event) => {
+      setOrbState('idle');
+      let msg = ERROR_MESSAGES[event.error] || ('Voice recognition error: ' + event.error);
+      if (event.error === 'not-allowed' && inFrame) {
+        msg = ERROR_MESSAGES['service-not-allowed'];
+      }
+      showMicError(msg);
+      announce(msg);
+      if (RETRYABLE_ERRORS.has(event.error)) {
+        speak(msg, () => startListeningForIntro());
+      }
     };
     recognizer.onend = () => {
       if (card.querySelector('.orb.listening')) setOrbState('idle');
@@ -417,14 +507,22 @@
     if (box) box.remove();
   }
 
+  function isNextCommand(transcript) {
+    return /\bnext\b/i.test(transcript.trim());
+  }
+
   function handleVoiceResult(q, transcript) {
     if (q.type === 'text') {
       const field = document.getElementById('freeText');
       if (field) field.value = transcript;
-      speak('I heard: ' + transcript + '. Tap next when you are happy with that, or say it again to redo it.');
+      speak('I heard: ' + transcript + '. Re-speak your response if incorrect, or say next to continue.', () => {
+        startListening(q, { confirmText: true });
+      });
       return;
     }
-    const match = fuzzyMatchOption(transcript, q.options);
+    const match = q.answerStyle === 'outcome'
+      ? matchOutcomeAnswer(transcript, q.options)
+      : fuzzyMatchOption(transcript, q.options);
     if (match) {
       const box = document.createElement('div');
       box.className = 'transcript-box';
@@ -432,8 +530,24 @@
       card.insertBefore(box, card.querySelector('.btn-row'));
       speak('I heard ' + match + '. Confirming that answer.', () => selectAnswer(match));
     } else {
-      speak('Sorry, I did not catch a clear answer. Please try again or tap an option on screen.');
+      speak('Sorry, I did not catch a clear answer. Let\'s try again.', () => startListening(q));
     }
+  }
+
+  // Follow-up listen after a free-text answer: "next" submits it, anything
+  // else is treated as a re-spoken replacement and prompted again.
+  function handleTextConfirmResult(q, transcript) {
+    if (isNextCommand(transcript)) {
+      const field = document.getElementById('freeText');
+      const val = field ? field.value.trim() : '';
+      selectAnswer(val.length ? val : '(no answer given)');
+      return;
+    }
+    const field = document.getElementById('freeText');
+    if (field) field.value = transcript;
+    speak('I heard: ' + transcript + '. Re-speak your response if incorrect, or say next to continue.', () => {
+      startListening(q, { confirmText: true });
+    });
   }
 
   function selectAnswer(answerText) {
