@@ -55,6 +55,14 @@ header.top p {
   font-size: 0.95rem;
 }
 
+.version-tag {
+  display: block;
+  color: var(--text-dim);
+  opacity: 0.6;
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+}
+
 .progress-track {
   height: 6px;
   background: var(--surface);

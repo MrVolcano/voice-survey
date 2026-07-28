@@ -13,6 +13,10 @@ A voice-enabled survey collection prototype for AbilityNet's post-training feedb
 
 Each question is read aloud and answered by voice (Web Speech API) or by tapping an on-screen option — voice is always optional. Works best in Chrome or Edge on desktop/Android; on iPhone/iPad, voice *input* only works in Safari (a platform restriction, not a bug here) though questions are still read aloud everywhere.
 
+### Cache-busting
+
+`survey-engine.js`, `questions-full.js`, `questions-open.js` and `survey-styles.css` are loaded with a `?v=N` query string on every page. GitHub Pages caches these fairly aggressively, so a page can otherwise end up with a freshly-fetched HTML file paired with a stale, mismatched cached script — bump `N` everywhere it appears whenever you edit any of those files, so visitors actually get the new version.
+
 ## Where the data goes
 
 There's no database yet, so responses are stored two ways:

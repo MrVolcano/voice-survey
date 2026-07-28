@@ -7,13 +7,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="survey-styles.css">
+<link rel="stylesheet" href="survey-styles.css?v=5">
 </head>
 <body>
 
 <div class="app">
   <header class="top">
     <h1>Voice Feedback Survey</h1>
+    <span class="version-tag">v5</span>
   </header>
 
   <main class="card">
@@ -48,7 +49,7 @@
   </footer>
 </div>
 
-<script src="survey-engine.js"></script>
+<script src="survey-engine.js?v=5"></script>
 <script>
   document.getElementById('exportAllBtn').addEventListener('click', () => {
     window.voiceSurveyStorage.exportAllLocalResponses();

@@ -14,12 +14,12 @@
     {
       id: 'location',
       type: 'text',
-      text: 'Where did the training take place? For example, home.'
+      text: 'Where did the training take place? Say home, or say the venue name.'
     },
     {
       id: 'device-use',
       type: 'choice',
-      text: 'Do you use your device more now?',
+      text: 'How much do you use your device now?',
       options: ['More', 'About the same', 'Less']
     },
     {
