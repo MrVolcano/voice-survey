@@ -1,63 +1,63 @@
-// Route B: "Open-ended" - the outcomes matrix and the new-abilities checklist
+// Short version: the outcomes matrix and the new-abilities checklist
 // from the real survey are each collapsed into a single open voice question,
 // keeping the survey short enough to comfortably sit through by ear.
 (function () {
   window.SURVEY_ROUTE_ID = 'open';
-  window.SURVEY_ROUTE_LABEL = 'Open-ended (short, free-text outcomes)';
+  window.SURVEY_ROUTE_LABEL = 'Short version';
   window.SURVEY_QUESTIONS = [
     {
       id: 'session-type',
       type: 'choice',
-      text: 'Did you have a one to one session, or a group session?',
-      options: ['One to one, just me and the trainer', 'A group session', 'A mixture of one to one and group', 'Other']
+      text: 'Was your session 1 to 1 or group?',
+      options: ['1 to 1', 'Group', 'Both', 'Other']
     },
     {
       id: 'location',
       type: 'text',
-      text: 'Where did your training take place? You can just say "home", or the name of the place.'
+      text: 'Where did the training take place? For example, home.'
     },
     {
       id: 'device-use',
       type: 'choice',
-      text: 'Do you use your device more since attending the sessions?',
-      options: ['Yes, more', 'About the same', 'No, less']
+      text: 'Do you use your device more now?',
+      options: ['More', 'About the same', 'Less']
     },
     {
       id: 'rating',
       type: 'choice',
-      text: 'Overall, how would you rate the training sessions?',
+      text: 'How would you rate the training?',
       options: ['Excellent', 'Good', 'Average', 'Poor']
     },
     {
       id: 'rating-why',
       type: 'text',
-      text: 'Please tell me why you rated the sessions that way.'
+      text: 'Why did you rate it that way?'
     },
     {
       id: 'outcomes-open',
       type: 'text',
-      text: 'Since the sessions, what has changed for you? For example, are you more confident, more independent, less isolated, or doing more online?'
+      text: 'What has changed for you since the sessions? For example, more confident, more independent, or less isolated.'
     },
     {
       id: 'abilities-open',
       type: 'text',
-      text: 'What are you able to do now that you could not do before, or feel more comfortable doing?'
+      text: 'What can you do now that you could not do before?'
     },
     {
       id: 'bt-funding',
       type: 'choice',
-      text: 'These sessions were funded by BT. Knowing that, does it change how you see BT?',
+      text: 'These sessions were funded by BT. Does that change how you see BT?',
       options: ['Yes', 'No']
     },
     {
       id: 'bt-funding-why',
       type: 'text',
-      text: 'Please tell me a bit more about why.'
+      text: 'Why is that?'
     },
     {
       id: 'anything-else',
       type: 'text',
-      text: 'Is there anything else you would like to tell us, about the trainer, the sessions, or the difference they have made for you?'
+      text: 'Anything else you would like to tell us about the trainer or the sessions?'
     }
   ];
 })();

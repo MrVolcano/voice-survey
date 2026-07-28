@@ -124,6 +124,7 @@
   }
 
   function updateCompatNote() {
+    if (!compatNote) return;
     if (!speechSupported) {
       compatNote.textContent = 'This browser does not support voice input, so manual buttons are used instead.';
       return;
