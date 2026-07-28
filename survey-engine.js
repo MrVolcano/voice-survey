@@ -25,17 +25,19 @@
   const listVoicesBtn = document.getElementById('listVoicesBtn');
   const voiceListEl = document.getElementById('voiceList');
 
-  listVoicesBtn.addEventListener('click', () => {
-    const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-    if (!voices.length) {
-      voiceListEl.innerHTML = 'No voices reported yet - try again in a second, or check the browser has permission/internet access.';
-    } else {
-      voiceListEl.innerHTML = voices.map(v =>
-        `${v.name} (${v.lang})${/natural|online|enhanced|premium/i.test(v.name) ? ' - looks natural' : ''}`
-      ).join('<br>');
-    }
-    voiceListEl.style.display = voiceListEl.style.display === 'none' ? 'block' : 'none';
-  });
+  if (listVoicesBtn) {
+    listVoicesBtn.addEventListener('click', () => {
+      const voices = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      if (!voices.length) {
+        voiceListEl.innerHTML = 'No voices reported yet - try again in a second, or check the browser has permission/internet access.';
+      } else {
+        voiceListEl.innerHTML = voices.map(v =>
+          `${v.name} (${v.lang})${/natural|online|enhanced|premium/i.test(v.name) ? ' - looks natural' : ''}`
+        ).join('<br>');
+      }
+      voiceListEl.style.display = voiceListEl.style.display === 'none' ? 'block' : 'none';
+    });
+  }
 
   const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
   const speechSupported = !!SpeechRecognitionAPI && !!window.speechSynthesis;
