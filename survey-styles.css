@@ -234,6 +234,21 @@ textarea.free-text {
 .flash-attention {
   animation: gentle-flash 0.9s ease-in-out 3;
 }
+
+/* The blanket reduced-motion rule above collapses every animation to ~0ms,
+   which would hide this cue from exactly the people most likely to rely on
+   it. Swap the pulse for a steady highlight rather than dropping it. */
+@media (prefers-reduced-motion: reduce) {
+  .flash-attention {
+    animation: none !important;
+    /* Deliberately outline, not box-shadow: the keyframes above animate
+       box-shadow, and on an element carrying this class the animated value
+       wins even over an !important declaration, leaving the highlight
+       invisible. outline is untouched by the keyframes, so it always shows. */
+    outline: 4px solid rgba(232, 163, 61, 0.75);
+    outline-offset: 2px;
+  }
+}
 .btn-quiet {
   background: transparent;
   color: var(--text-dim);

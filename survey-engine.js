@@ -297,6 +297,9 @@
 
   function beginSurvey() {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+    // Invalidate any in-flight listen first, so the abort below doesn't reach
+    // handlers that would announce a stop or kick off a retry.
+    listenSessionId++;
     if (recognizer) { try { recognizer.abort(); } catch (e) { /* not listening - fine */ } }
     current = 0;
     answers.length = 0;
@@ -464,14 +467,37 @@
   // effective time someone has to start speaking.
   const NO_SPEECH_RETRY_LIMIT = 1;
 
+  // The recognizer is a single shared instance whose handlers get reassigned
+  // on every listen, so a late event from an aborted or superseded session
+  // could otherwise fire the wrong callbacks. Each listen claims an id and
+  // its handlers ignore anything that isn't the current one.
+  let listenSessionId = 0;
+
+  // One shared AudioContext, created lazily on first use and never closed.
+  // Chrome caps a page at roughly six live AudioContexts, so creating a fresh
+  // one per beep meant the sound silently stopped working after a handful of
+  // timeouts. Mobile browsers also hand back a suspended context, which has
+  // to be resumed or it produces nothing at all.
+  let audioCtx = null;
+  function getAudioContext() {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    if (!audioCtx) {
+      try { audioCtx = new AudioCtx(); } catch (e) { return null; }
+    }
+    if (audioCtx.state === 'suspended' && audioCtx.resume) {
+      audioCtx.resume().catch(() => { /* stays silent; the flash still shows */ });
+    }
+    return audioCtx;
+  }
+
   // A short descending two-tone "beep-boop", evoking an old phone hangup/
   // disconnect tone - played whenever listening genuinely stops (as opposed
   // to us silently retrying), so it's audible even with eyes closed.
   function playListenStoppedSound() {
     try {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
+      const ctx = getAudioContext();
+      if (!ctx) return;
       const now = ctx.currentTime;
       [{ freq: 480, start: 0 }, { freq: 340, start: 0.16 }].forEach(({ freq, start }) => {
         const osc = ctx.createOscillator();
@@ -485,18 +511,21 @@
         osc.start(now + start);
         osc.stop(now + start + 0.2);
       });
-      setTimeout(() => ctx.close(), 600);
     } catch (e) { /* Web Audio unavailable - the button flash still shows */ }
   }
 
-  // Briefly pulses a button's outline a few times so someone glancing back at
-  // the screen after listening has stopped can see exactly where to tap.
+  // Briefly pulses a button's outline so someone glancing back at the screen
+  // after listening has stopped can see exactly where to tap. The class is
+  // cleared on a timer rather than only on animationend, because under
+  // prefers-reduced-motion the animation is suppressed (and replaced by a
+  // steady highlight in CSS), so animationend may never fire.
+  const FLASH_DURATION_MS = 2700; // 3 x 0.9s, matching the CSS animation
   function flashButtonForAttention(btn) {
     if (!btn) return;
     btn.classList.remove('flash-attention');
     void btn.offsetWidth; // force reflow so a repeat flash restarts the animation
     btn.classList.add('flash-attention');
-    btn.addEventListener('animationend', () => btn.classList.remove('flash-attention'), { once: true });
+    setTimeout(() => btn.classList.remove('flash-attention'), FLASH_DURATION_MS);
   }
 
   // Called whenever listening has genuinely stopped and it's now on the
@@ -512,6 +541,9 @@
     const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
     const inFrame = window.top !== window.self;
+    const sessionId = ++listenSessionId;
+    let gotResult = false;
+    let errorCode = null;
 
     setOrbState('listening');
     announce('Listening for your answer');
@@ -527,7 +559,9 @@
     }
 
     recognizer.onresult = (event) => {
+      if (sessionId !== listenSessionId) return;
       const transcript = event.results[0][0].transcript;
+      gotResult = true;
       setOrbState('idle');
       clearMicError();
       if (opts.confirmText) {
@@ -537,23 +571,33 @@
       }
     };
     recognizer.onerror = (event) => {
-      setOrbState('idle');
+      if (sessionId !== listenSessionId) return;
+      errorCode = event.error;
       let msg = ERROR_MESSAGES[event.error] || ('Voice recognition error: ' + event.error);
       if (event.error === 'not-allowed' && inFrame) {
         msg = ERROR_MESSAGES['service-not-allowed'];
       }
       showMicError(msg);
       announce(msg);
-      if (RETRYABLE_ERRORS.has(event.error) && retriesLeft > 0) {
+    };
+    // onend is the only event guaranteed to fire on every path, so the
+    // decision of "retry or tell them we've stopped" lives here. Plenty of
+    // browsers (notably Chrome on Android) end a silent session without ever
+    // emitting a no-speech error, which previously meant a timeout produced
+    // no sound and no flash at all.
+    recognizer.onend = () => {
+      if (sessionId !== listenSessionId) return; // superseded/aborted session
+      setOrbState('idle');
+      if (gotResult) return;
+      const silent = errorCode === null || RETRYABLE_ERRORS.has(errorCode);
+      if (silent && retriesLeft > 0) {
+        const msg = ERROR_MESSAGES['no-speech'];
         // Speaking the message first guarantees the previous recognition
         // session has fully ended before we start a new one.
         speak(msg, () => startListening(q, { ...opts, retriesLeft: retriesLeft - 1 }));
       } else {
         notifyListeningStopped();
       }
-    };
-    recognizer.onend = () => {
-      if (card.querySelector('.orb.listening')) setOrbState('idle');
     };
   }
 
@@ -564,6 +608,9 @@
     const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
     const inFrame = window.top !== window.self;
+    const sessionId = ++listenSessionId;
+    let handled = false;
+    let errorCode = null;
 
     setOrbState('listening');
     announce('Listening for the start command');
@@ -579,7 +626,9 @@
     }
 
     recognizer.onresult = (event) => {
+      if (sessionId !== listenSessionId) return;
       const transcript = event.results[0][0].transcript;
+      handled = true;
       setOrbState('idle');
       clearMicError();
       if (/\bstart\b/i.test(transcript)) {
@@ -589,21 +638,27 @@
       }
     };
     recognizer.onerror = (event) => {
-      setOrbState('idle');
+      if (sessionId !== listenSessionId) return;
+      errorCode = event.error;
       let msg = ERROR_MESSAGES[event.error] || ('Voice recognition error: ' + event.error);
       if (event.error === 'not-allowed' && inFrame) {
         msg = ERROR_MESSAGES['service-not-allowed'];
       }
       showMicError(msg);
       announce(msg);
-      if (RETRYABLE_ERRORS.has(event.error) && retriesLeft > 0) {
-        speak(msg, () => startListeningForIntro({ retriesLeft: retriesLeft - 1 }));
+    };
+    // See startListening: onend is the one event that always fires, so the
+    // retry-or-stop decision has to be made here rather than in onerror.
+    recognizer.onend = () => {
+      if (sessionId !== listenSessionId) return;
+      setOrbState('idle');
+      if (handled) return;
+      const silent = errorCode === null || RETRYABLE_ERRORS.has(errorCode);
+      if (silent && retriesLeft > 0) {
+        speak(ERROR_MESSAGES['no-speech'], () => startListeningForIntro({ retriesLeft: retriesLeft - 1 }));
       } else {
         notifyListeningStopped();
       }
-    };
-    recognizer.onend = () => {
-      if (card.querySelector('.orb.listening')) setOrbState('idle');
     };
   }
 
