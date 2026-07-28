@@ -245,6 +245,29 @@
     return null;
   }
 
+  // Plain yes/no questions (all 11 ability questions, plus the BT-funding
+  // one) used the generic word-overlap matcher, which has two problems for
+  // an option as short as "No": it doesn't recognise casual phrasing like
+  // "yeah" or "nah", and its plain substring check for "no" also fires
+  // inside completely unrelated words like "now" or "know" - both of which
+  // are exactly what people say when answering "Can you now do X?" ("yeah,
+  // I know how now"). Word-boundary matching against a fixed vocabulary
+  // avoids both.
+  function isYesNoOptions(options) {
+    return options.length === 2
+      && options.some(o => o.toLowerCase() === 'yes')
+      && options.some(o => o.toLowerCase() === 'no');
+  }
+
+  function matchYesNo(transcript, options) {
+    const t = transcript.toLowerCase();
+    const find = (label) => options.find(o => o.toLowerCase() === label) || null;
+
+    if (/\b(no|nope|nah|not really|no way)\b/.test(t)) return find('no');
+    if (/\b(yes|yeah|yep|yup|sure|definitely)\b/.test(t)) return find('yes');
+    return null;
+  }
+
   let handsFree = !isIOSSafari;
 
   // Rebuilds the start-screen voice dropdown in place from whatever voices
@@ -558,7 +581,9 @@
     }
     const match = q.answerStyle === 'outcome'
       ? matchOutcomeAnswer(transcript, q.options)
-      : fuzzyMatchOption(transcript, q.options);
+      : isYesNoOptions(q.options)
+        ? matchYesNo(transcript, q.options)
+        : fuzzyMatchOption(transcript, q.options);
     if (match) {
       const box = document.createElement('div');
       box.className = 'transcript-box';
