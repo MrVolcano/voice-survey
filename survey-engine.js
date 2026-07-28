@@ -198,8 +198,20 @@
     );
   }
 
+  // Recognizers frequently mishear these as their homophone, especially in
+  // en-GB - most notably "poor" (the rating option) coming back as "pour"
+  // or "pore". Normalized on the transcript only, since the option text
+  // itself is always spelled correctly.
+  const HOMOPHONES = { pour: 'poor', pore: 'poor' };
+  function normalizeHomophones(str) {
+    return Object.keys(HOMOPHONES).reduce(
+      (out, word) => out.replace(new RegExp('\\b' + word + '\\b', 'gi'), HOMOPHONES[word]),
+      str
+    );
+  }
+
   function fuzzyMatchOption(transcript, options) {
-    const t = normalizeNumberWords(transcript).toLowerCase();
+    const t = normalizeHomophones(normalizeNumberWords(transcript)).toLowerCase();
     let best = null;
     let bestScore = 0;
     options.forEach((opt) => {
