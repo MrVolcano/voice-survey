@@ -9,18 +9,23 @@
     'more knowledgeable about technology',
     'more confident with technology',
     'able to try new things online',
-    'better able to manage day to day life online',
+    'better able to manage daily life online',
     'more independent',
     'less isolated',
     'less stressed',
     'able to use what you learnt on your own',
-    'keen to learn more about technology',
+    'keen to learn more about your device',
     'more confident using your own device'
   ].map((phrase, i) => ({
     id: `outcome-${i}`,
     type: 'choice',
-    text: `Do you now feel ${phrase}?`,
-    options: OUTCOME_OPTIONS
+    text: `Do you feel ${phrase}?`,
+    options: OUTCOME_OPTIONS,
+    // These 10 questions all share the same options, so re-reading the list
+    // aloud every time is just noise - the answer matcher below listens for
+    // yes/no/too soon/not relevant instead.
+    announceOptions: false,
+    answerStyle: 'outcome'
   }));
 
   const abilities = [

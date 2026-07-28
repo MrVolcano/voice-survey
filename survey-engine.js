@@ -197,6 +197,26 @@
     return bestScore > 0 ? best : null;
   }
 
+  // The 10 outcome questions all share the same four answers, so instead of
+  // reading them aloud every time we just listen and match against the
+  // phrasing people are likely to use. Checked in order from most to least
+  // distinctive, since a plain "no" can otherwise show up as a false-positive
+  // substring inside other answers (eg "not relevant" contains "no").
+  function matchOutcomeAnswer(transcript, options) {
+    const t = transcript.toLowerCase();
+    const find = (label) => options.find(o => o.toLowerCase() === label) || null;
+
+    if (/\b(relevant|applicable|apply|n\/a)\b/.test(t)) {
+      return find('not relevant');
+    }
+    if (/\b(soon|unsure|undecided)\b/.test(t) || /don'?t know|do ?n't know|not sure/.test(t)) {
+      return find('too soon');
+    }
+    if (/\bno\b/.test(t)) return find('no');
+    if (/\b(yes|yeah|yep|yup)\b/.test(t)) return find('yes');
+    return null;
+  }
+
   let handsFree = !isIOSSafari;
 
   // Rebuilds the start-screen voice dropdown in place from whatever voices
@@ -341,7 +361,7 @@
   function readQuestionAloud(q) {
     setOrbState('speaking');
     let toSay = q.text;
-    if (q.type === 'choice') {
+    if (q.type === 'choice' && q.announceOptions !== false) {
       toSay += ' Your options are: ' + q.options.join(', ') + '.';
     }
     speak(toSay, () => {
@@ -500,7 +520,9 @@
       });
       return;
     }
-    const match = fuzzyMatchOption(transcript, q.options);
+    const match = q.answerStyle === 'outcome'
+      ? matchOutcomeAnswer(transcript, q.options)
+      : fuzzyMatchOption(transcript, q.options);
     if (match) {
       const box = document.createElement('div');
       box.className = 'transcript-box';
