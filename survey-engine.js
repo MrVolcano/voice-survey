@@ -457,9 +457,59 @@
   // microphone permission, no microphone, no network).
   const RETRYABLE_ERRORS = new Set(['no-speech']);
 
+  // Browsers time out "no-speech" listening on their own (Chrome's is a
+  // fixed ~5-6s and isn't something the Web Speech API lets a page extend
+  // directly), so the only lever we have is how many times we automatically
+  // listen again before truly giving up. One automatic retry doubles the
+  // effective time someone has to start speaking.
+  const NO_SPEECH_RETRY_LIMIT = 1;
+
+  // A short descending two-tone "beep-boop", evoking an old phone hangup/
+  // disconnect tone - played whenever listening genuinely stops (as opposed
+  // to us silently retrying), so it's audible even with eyes closed.
+  function playListenStoppedSound() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      [{ freq: 480, start: 0 }, { freq: 340, start: 0.16 }].forEach(({ freq, start }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now + start);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + 0.2);
+      });
+      setTimeout(() => ctx.close(), 600);
+    } catch (e) { /* Web Audio unavailable - the button flash still shows */ }
+  }
+
+  // Briefly pulses a button's outline a few times so someone glancing back at
+  // the screen after listening has stopped can see exactly where to tap.
+  function flashButtonForAttention(btn) {
+    if (!btn) return;
+    btn.classList.remove('flash-attention');
+    void btn.offsetWidth; // force reflow so a repeat flash restarts the animation
+    btn.classList.add('flash-attention');
+    btn.addEventListener('animationend', () => btn.classList.remove('flash-attention'), { once: true });
+  }
+
+  // Called whenever listening has genuinely stopped and it's now on the
+  // person to tap a button to continue (as opposed to us auto-retrying).
+  function notifyListeningStopped() {
+    playListenStoppedSound();
+    flashButtonForAttention(document.getElementById('micBtn') || document.getElementById('startBtn'));
+  }
+
   function startListening(q, opts) {
     if (!recognizer) return;
     opts = opts || {};
+    const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
     const inFrame = window.top !== window.self;
 
@@ -472,6 +522,7 @@
     } catch (e) {
       setOrbState('idle');
       showMicError('Could not start listening: ' + e.message);
+      notifyListeningStopped();
       return;
     }
 
@@ -493,10 +544,12 @@
       }
       showMicError(msg);
       announce(msg);
-      if (RETRYABLE_ERRORS.has(event.error)) {
+      if (RETRYABLE_ERRORS.has(event.error) && retriesLeft > 0) {
         // Speaking the message first guarantees the previous recognition
         // session has fully ended before we start a new one.
-        speak(msg, () => startListening(q, opts));
+        speak(msg, () => startListening(q, { ...opts, retriesLeft: retriesLeft - 1 }));
+      } else {
+        notifyListeningStopped();
       }
     };
     recognizer.onend = () => {
@@ -505,8 +558,10 @@
   }
 
   // Listens on the intro screen for the "start survey" voice command.
-  function startListeningForIntro() {
+  function startListeningForIntro(opts) {
     if (!recognizer) return;
+    opts = opts || {};
+    const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
     const inFrame = window.top !== window.self;
 
@@ -519,6 +574,7 @@
     } catch (e) {
       setOrbState('idle');
       showMicError('Could not start listening: ' + e.message);
+      notifyListeningStopped();
       return;
     }
 
@@ -540,8 +596,10 @@
       }
       showMicError(msg);
       announce(msg);
-      if (RETRYABLE_ERRORS.has(event.error)) {
-        speak(msg, () => startListeningForIntro());
+      if (RETRYABLE_ERRORS.has(event.error) && retriesLeft > 0) {
+        speak(msg, () => startListeningForIntro({ retriesLeft: retriesLeft - 1 }));
+      } else {
+        notifyListeningStopped();
       }
     };
     recognizer.onend = () => {

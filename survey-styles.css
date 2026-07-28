@@ -224,6 +224,16 @@ textarea.free-text {
 
 .btn-primary { background: var(--gold); color: #1B1400; }
 .btn-secondary { background: var(--surface-raised); color: var(--text); }
+
+/* Draws the eye back to a button after listening stops on its own, without
+   being so sharp it feels like an alarm. */
+@keyframes gentle-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232, 163, 61, 0); }
+  50% { box-shadow: 0 0 0 8px rgba(232, 163, 61, 0.4); }
+}
+.flash-attention {
+  animation: gentle-flash 0.9s ease-in-out 3;
+}
 .btn-quiet {
   background: transparent;
   color: var(--text-dim);
