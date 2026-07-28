@@ -19,7 +19,7 @@
     {
       id: 'device-use',
       type: 'choice',
-      text: 'Do you use your device more now?',
+      text: 'How much do you use your device now?',
       options: ['More', 'About the same', 'Less']
     },
     {
