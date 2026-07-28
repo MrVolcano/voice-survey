@@ -1,0 +1,311 @@
+:root {
+  --bg: #14181F;
+  --surface: #1E2530;
+  --surface-raised: #262E3B;
+  --text: #F5F1E8;
+  --text-dim: #B8BFCC;
+  --gold: #E8A33D;
+  --teal: #5FBDB0;
+  --rose: #D97878;
+  --focus: #F5F1E8;
+  --radius: 18px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Atkinson Hyperlegible', Arial, sans-serif;
+  min-height: 100vh;
+}
+
+body {
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px 60px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+.app {
+  width: 100%;
+  max-width: 560px;
+}
+
+header.top {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+header.top h1 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+  letter-spacing: 0.01em;
+}
+
+header.top p {
+  color: var(--text-dim);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.progress-track {
+  height: 6px;
+  background: var(--surface);
+  border-radius: 999px;
+  margin: 20px 0 8px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+  width: 0%;
+}
+
+.progress-label {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  text-align: right;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-align: center;
+}
+
+/* the orb: the one signature visual element, gives a sighted observer
+   (or low-vision user with residual sight) a clear read on system state
+   without relying on it — every state is also spoken and printed */
+.orb-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.orb {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--surface-raised), var(--surface));
+  border: 3px solid var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.orb .icon { font-size: 2.4rem; }
+
+.orb.speaking {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 0 rgba(95,189,176,0.6);
+  animation: pulse-teal 1.4s ease-in-out infinite;
+}
+
+.orb.listening {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 0 rgba(232,163,61,0.6);
+  animation: pulse-gold 1.1s ease-in-out infinite;
+}
+
+@keyframes pulse-teal {
+  0% { box-shadow: 0 0 0 0 rgba(95,189,176,0.45); }
+  70% { box-shadow: 0 0 0 22px rgba(95,189,176,0); }
+  100% { box-shadow: 0 0 0 0 rgba(95,189,176,0); }
+}
+
+@keyframes pulse-gold {
+  0% { box-shadow: 0 0 0 0 rgba(232,163,61,0.45); }
+  70% { box-shadow: 0 0 0 22px rgba(232,163,61,0); }
+  100% { box-shadow: 0 0 0 0 rgba(232,163,61,0); }
+}
+
+.state-label {
+  font-size: 1rem;
+  color: var(--text-dim);
+  margin-bottom: 18px;
+  min-height: 1.4em;
+}
+
+.question-text {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 0 0 24px;
+}
+
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.option-btn {
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 18px 16px;
+  font-size: 1.05rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  min-height: 60px;
+}
+
+.option-btn:hover { background: #303A49; }
+
+.option-btn:focus-visible,
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.option-btn.chosen {
+  border-color: var(--gold);
+  background: #33291A;
+}
+
+textarea.free-text {
+  width: 100%;
+  min-height: 110px;
+  background: var(--surface-raised);
+  color: var(--text);
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 14px;
+  font-family: inherit;
+  font-size: 1.05rem;
+  margin-bottom: 20px;
+  resize: vertical;
+}
+
+.btn-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn {
+  font-family: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border: none;
+  border-radius: 999px;
+  padding: 16px 28px;
+  cursor: pointer;
+  min-height: 56px;
+  min-width: 120px;
+}
+
+.btn-primary { background: var(--gold); color: #1B1400; }
+.btn-secondary { background: var(--surface-raised); color: var(--text); }
+.btn-quiet {
+  background: transparent;
+  color: var(--text-dim);
+  text-decoration: underline;
+  padding: 10px 12px;
+  min-width: unset;
+  min-height: unset;
+  font-weight: 400;
+  font-size: 0.95rem;
+}
+
+.transcript-box {
+  background: var(--surface-raised);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  text-align: left;
+  font-size: 1rem;
+  color: var(--text-dim);
+}
+.transcript-box strong { color: var(--text); }
+
+.summary-list {
+  text-align: left;
+  margin-bottom: 24px;
+}
+
+.summary-item {
+  border-bottom: 1px solid var(--surface-raised);
+  padding: 14px 0;
+}
+.summary-item:last-child { border-bottom: none; }
+.summary-item .q { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 4px; }
+.summary-item .a { font-size: 1.05rem; font-weight: 700; }
+
+.support-note {
+  background: var(--surface-raised);
+  border-left: 3px solid var(--rose);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-top: 18px;
+  text-align: left;
+}
+
+.route-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.route-card {
+  background: var(--surface-raised);
+  border-radius: 14px;
+  padding: 20px;
+  text-align: left;
+}
+
+.route-card h2 {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+}
+
+.route-card p {
+  margin: 0 0 14px;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.route-card a.btn {
+  display: inline-block;
+  text-decoration: none;
+  text-align: center;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap; border: 0;
+}
+
+footer.notes {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-top: 28px;
+}
