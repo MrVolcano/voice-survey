@@ -185,15 +185,29 @@
     progressLabel.textContent = `Question ${Math.min(current + 1, questions.length)} of ${questions.length}`;
   }
 
+  // Speech recognition transcribes spoken numbers as digits ("one to one"
+  // comes back as "1 to 1" in some browsers but "one to one" in others), and
+  // options like "1 to 1" are written as digits. Normalising both sides to
+  // digits before matching means either form works regardless of which way
+  // a given browser's recognizer happens to transcribe it.
+  const NUMBER_WORDS = { one: '1', two: '2', three: '3', four: '4', five: '5' };
+  function normalizeNumberWords(str) {
+    return Object.keys(NUMBER_WORDS).reduce(
+      (out, word) => out.replace(new RegExp('\\b' + word + '\\b', 'gi'), NUMBER_WORDS[word]),
+      str
+    );
+  }
+
   function fuzzyMatchOption(transcript, options) {
-    const t = transcript.toLowerCase();
+    const t = normalizeNumberWords(transcript).toLowerCase();
     let best = null;
     let bestScore = 0;
     options.forEach((opt) => {
-      const words = opt.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const optNorm = normalizeNumberWords(opt).toLowerCase();
+      const words = optNorm.split(/\s+/).filter(w => w.length > 2 || /^\d+$/.test(w));
       let score = 0;
       words.forEach(w => { if (t.includes(w)) score++; });
-      if (t.includes(opt.toLowerCase())) score += 5;
+      if (t.includes(optNorm)) score += 5;
       if (score > bestScore) { bestScore = score; best = opt; }
     });
     return bestScore > 0 ? best : null;
@@ -360,11 +374,19 @@
     readQuestionAloud(q);
   }
 
+  // Reads as a natural spoken list: a comma (a slight pause) between each
+  // option, and "or" instead of a comma before the last one - eg
+  // "Excellent, Good, Average or Poor" rather than a flat comma-separated run.
+  function speakableOptionList(options) {
+    if (options.length <= 1) return options.join('');
+    return options.slice(0, -1).join(', ') + ' or ' + options[options.length - 1];
+  }
+
   function readQuestionAloud(q) {
     setOrbState('speaking');
     let toSay = q.text;
     if (q.type === 'choice' && q.announceOptions !== false) {
-      toSay += ' Your options are: ' + q.options.join(', ') + '.';
+      toSay += ' Your options are: ' + speakableOptionList(q.options) + '.';
     }
     speak(toSay, () => {
       setOrbState('idle');
