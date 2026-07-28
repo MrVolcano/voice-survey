@@ -198,8 +198,20 @@
     );
   }
 
+  // Recognizers frequently mishear these as their homophone, especially in
+  // en-GB - most notably "poor" (the rating option) coming back as "pour"
+  // or "pore". Normalized on the transcript only, since the option text
+  // itself is always spelled correctly.
+  const HOMOPHONES = { pour: 'poor', pore: 'poor' };
+  function normalizeHomophones(str) {
+    return Object.keys(HOMOPHONES).reduce(
+      (out, word) => out.replace(new RegExp('\\b' + word + '\\b', 'gi'), HOMOPHONES[word]),
+      str
+    );
+  }
+
   function fuzzyMatchOption(transcript, options) {
-    const t = normalizeNumberWords(transcript).toLowerCase();
+    const t = normalizeHomophones(normalizeNumberWords(transcript)).toLowerCase();
     let best = null;
     let bestScore = 0;
     options.forEach((opt) => {
@@ -230,6 +242,29 @@
     }
     if (/\bno\b/.test(t)) return find('no');
     if (/\b(yes|yeah|yep|yup)\b/.test(t)) return find('yes');
+    return null;
+  }
+
+  // Plain yes/no questions (all 11 ability questions, plus the BT-funding
+  // one) used the generic word-overlap matcher, which has two problems for
+  // an option as short as "No": it doesn't recognise casual phrasing like
+  // "yeah" or "nah", and its plain substring check for "no" also fires
+  // inside completely unrelated words like "now" or "know" - both of which
+  // are exactly what people say when answering "Can you now do X?" ("yeah,
+  // I know how now"). Word-boundary matching against a fixed vocabulary
+  // avoids both.
+  function isYesNoOptions(options) {
+    return options.length === 2
+      && options.some(o => o.toLowerCase() === 'yes')
+      && options.some(o => o.toLowerCase() === 'no');
+  }
+
+  function matchYesNo(transcript, options) {
+    const t = transcript.toLowerCase();
+    const find = (label) => options.find(o => o.toLowerCase() === label) || null;
+
+    if (/\b(no|nope|nah|not really|no way)\b/.test(t)) return find('no');
+    if (/\b(yes|yeah|yep|yup|sure|definitely)\b/.test(t)) return find('yes');
     return null;
   }
 
@@ -422,9 +457,59 @@
   // microphone permission, no microphone, no network).
   const RETRYABLE_ERRORS = new Set(['no-speech']);
 
+  // Browsers time out "no-speech" listening on their own (Chrome's is a
+  // fixed ~5-6s and isn't something the Web Speech API lets a page extend
+  // directly), so the only lever we have is how many times we automatically
+  // listen again before truly giving up. One automatic retry doubles the
+  // effective time someone has to start speaking.
+  const NO_SPEECH_RETRY_LIMIT = 1;
+
+  // A short descending two-tone "beep-boop", evoking an old phone hangup/
+  // disconnect tone - played whenever listening genuinely stops (as opposed
+  // to us silently retrying), so it's audible even with eyes closed.
+  function playListenStoppedSound() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      [{ freq: 480, start: 0 }, { freq: 340, start: 0.16 }].forEach(({ freq, start }) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, now + start);
+        gain.gain.exponentialRampToValueAtTime(0.18, now + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + start + 0.18);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + 0.2);
+      });
+      setTimeout(() => ctx.close(), 600);
+    } catch (e) { /* Web Audio unavailable - the button flash still shows */ }
+  }
+
+  // Briefly pulses a button's outline a few times so someone glancing back at
+  // the screen after listening has stopped can see exactly where to tap.
+  function flashButtonForAttention(btn) {
+    if (!btn) return;
+    btn.classList.remove('flash-attention');
+    void btn.offsetWidth; // force reflow so a repeat flash restarts the animation
+    btn.classList.add('flash-attention');
+    btn.addEventListener('animationend', () => btn.classList.remove('flash-attention'), { once: true });
+  }
+
+  // Called whenever listening has genuinely stopped and it's now on the
+  // person to tap a button to continue (as opposed to us auto-retrying).
+  function notifyListeningStopped() {
+    playListenStoppedSound();
+    flashButtonForAttention(document.getElementById('micBtn') || document.getElementById('startBtn'));
+  }
+
   function startListening(q, opts) {
     if (!recognizer) return;
     opts = opts || {};
+    const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
     const inFrame = window.top !== window.self;
 
@@ -437,6 +522,7 @@
     } catch (e) {
       setOrbState('idle');
       showMicError('Could not start listening: ' + e.message);
+      notifyListeningStopped();
       return;
     }
 
@@ -458,10 +544,12 @@
       }
       showMicError(msg);
       announce(msg);
-      if (RETRYABLE_ERRORS.has(event.error)) {
+      if (RETRYABLE_ERRORS.has(event.error) && retriesLeft > 0) {
         // Speaking the message first guarantees the previous recognition
         // session has fully ended before we start a new one.
-        speak(msg, () => startListening(q, opts));
+        speak(msg, () => startListening(q, { ...opts, retriesLeft: retriesLeft - 1 }));
+      } else {
+        notifyListeningStopped();
       }
     };
     recognizer.onend = () => {
@@ -470,8 +558,10 @@
   }
 
   // Listens on the intro screen for the "start survey" voice command.
-  function startListeningForIntro() {
+  function startListeningForIntro(opts) {
     if (!recognizer) return;
+    opts = opts || {};
+    const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
     const inFrame = window.top !== window.self;
 
@@ -484,6 +574,7 @@
     } catch (e) {
       setOrbState('idle');
       showMicError('Could not start listening: ' + e.message);
+      notifyListeningStopped();
       return;
     }
 
@@ -505,8 +596,10 @@
       }
       showMicError(msg);
       announce(msg);
-      if (RETRYABLE_ERRORS.has(event.error)) {
-        speak(msg, () => startListeningForIntro());
+      if (RETRYABLE_ERRORS.has(event.error) && retriesLeft > 0) {
+        speak(msg, () => startListeningForIntro({ retriesLeft: retriesLeft - 1 }));
+      } else {
+        notifyListeningStopped();
       }
     };
     recognizer.onend = () => {
@@ -546,7 +639,9 @@
     }
     const match = q.answerStyle === 'outcome'
       ? matchOutcomeAnswer(transcript, q.options)
-      : fuzzyMatchOption(transcript, q.options);
+      : isYesNoOptions(q.options)
+        ? matchYesNo(transcript, q.options)
+        : fuzzyMatchOption(transcript, q.options);
     if (match) {
       const box = document.createElement('div');
       box.className = 'transcript-box';
