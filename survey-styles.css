@@ -262,6 +262,12 @@ textarea.free-text {
   text-align: left;
 }
 
+.intro-lead {
+  font-size: 1.05rem;
+  color: var(--text-dim);
+  margin: 0 0 20px;
+}
+
 .route-list {
   display: flex;
   flex-direction: column;

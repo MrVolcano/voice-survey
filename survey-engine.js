@@ -364,8 +364,14 @@
     'aborted': 'Listening was stopped before an answer came through.'
   };
 
-  function startListening(q) {
+  // Errors where simply trying again is likely to work (nothing was heard),
+  // as opposed to ones that need the person to fix something first (blocked
+  // microphone permission, no microphone, no network).
+  const RETRYABLE_ERRORS = new Set(['no-speech']);
+
+  function startListening(q, opts) {
     if (!recognizer) return;
+    opts = opts || {};
 
     const inFrame = window.top !== window.self;
 
@@ -385,7 +391,11 @@
       const transcript = event.results[0][0].transcript;
       setOrbState('idle');
       clearMicError();
-      handleVoiceResult(q, transcript);
+      if (opts.confirmText) {
+        handleTextConfirmResult(q, transcript);
+      } else {
+        handleVoiceResult(q, transcript);
+      }
     };
     recognizer.onerror = (event) => {
       setOrbState('idle');
@@ -395,6 +405,11 @@
       }
       showMicError(msg);
       announce(msg);
+      if (RETRYABLE_ERRORS.has(event.error)) {
+        // Speaking the message first guarantees the previous recognition
+        // session has fully ended before we start a new one.
+        speak(msg, () => startListening(q, opts));
+      }
     };
     recognizer.onend = () => {
       if (card.querySelector('.orb.listening')) setOrbState('idle');
@@ -418,11 +433,17 @@
     if (box) box.remove();
   }
 
+  function isNextCommand(transcript) {
+    return /\bnext\b/i.test(transcript.trim());
+  }
+
   function handleVoiceResult(q, transcript) {
     if (q.type === 'text') {
       const field = document.getElementById('freeText');
       if (field) field.value = transcript;
-      speak('I heard: ' + transcript + '. Tap next when you are happy with that, or say it again to redo it.');
+      speak('I heard: ' + transcript + '. Re-speak your response if incorrect, or say next to continue.', () => {
+        startListening(q, { confirmText: true });
+      });
       return;
     }
     const match = fuzzyMatchOption(transcript, q.options);
@@ -433,8 +454,24 @@
       card.insertBefore(box, card.querySelector('.btn-row'));
       speak('I heard ' + match + '. Confirming that answer.', () => selectAnswer(match));
     } else {
-      speak('Sorry, I did not catch a clear answer. Please try again or tap an option on screen.');
+      speak('Sorry, I did not catch a clear answer. Let\'s try again.', () => startListening(q));
     }
+  }
+
+  // Follow-up listen after a free-text answer: "next" submits it, anything
+  // else is treated as a re-spoken replacement and prompted again.
+  function handleTextConfirmResult(q, transcript) {
+    if (isNextCommand(transcript)) {
+      const field = document.getElementById('freeText');
+      const val = field ? field.value.trim() : '';
+      selectAnswer(val.length ? val : '(no answer given)');
+      return;
+    }
+    const field = document.getElementById('freeText');
+    if (field) field.value = transcript;
+    speak('I heard: ' + transcript + '. Re-speak your response if incorrect, or say next to continue.', () => {
+      startListening(q, { confirmText: true });
+    });
   }
 
   function selectAnswer(answerText) {
