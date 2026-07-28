@@ -10,6 +10,7 @@
 
   const LOCAL_STORAGE_KEY = 'voiceSurveyResponses';
   const MAX_STORED_RESPONSES = 100;
+  const PREFERRED_VOICE_KEY = 'voiceSurveyPreferredVoice';
 
   const questions = window.SURVEY_QUESTIONS || [];
   const routeId = window.SURVEY_ROUTE_ID || 'unknown';
@@ -38,6 +39,7 @@
 
   const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
   const speechSupported = !!SpeechRecognitionAPI && !!window.speechSynthesis;
+  const ttsSupported = !!window.speechSynthesis;
 
   // iOS only grants microphone-based speech recognition to Safari itself -
   // Chrome, Edge and every other iPhone/iPad browser use the same rendering
@@ -64,8 +66,18 @@
   // retry a few times rather than relying on a single event that not every
   // browser fires reliably.
   let naturalVoice = null;
+  let selectedVoice = null;
   let voiceLabel = 'standard';
   let voiceAttempts = 0;
+
+  function voiceKey(v) { return v.name + '|' + v.lang; }
+
+  function getVoicePool() {
+    if (!window.speechSynthesis) return [];
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+    return englishVoices.length ? englishVoices : voices;
+  }
 
   function pickBestVoice() {
     if (!window.speechSynthesis) { updateCompatNote(); return; }
@@ -82,8 +94,7 @@
       return;
     }
 
-    const englishVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('en'));
-    const pool = englishVoices.length ? englishVoices : voices;
+    const pool = getVoicePool();
 
     // Prefer anything explicitly flagged "Natural" (Edge), then fall back to
     // other known cloud/enhanced voice naming patterns other browsers use.
@@ -97,7 +108,19 @@
 
     naturalVoice = natural || gbFirst || null;
     voiceLabel = natural ? 'natural' : 'standard';
+
+    // A voice picked by hand (this session or a previous visit, via the
+    // dropdown on the start screen) wins over the auto-pick above, as long
+    // as it's actually present in this browser's voice list.
+    let preferred = null;
+    try {
+      const savedKey = localStorage.getItem(PREFERRED_VOICE_KEY);
+      if (savedKey) preferred = pool.find(v => voiceKey(v) === savedKey) || null;
+    } catch (e) { /* localStorage unavailable - just use the auto-pick */ }
+    selectedVoice = preferred || naturalVoice;
+
     updateCompatNote();
+    populateVoiceSelect();
   }
 
   function updateCompatNote() {
@@ -135,9 +158,9 @@
     const utter = new SpeechSynthesisUtterance(text);
     utter.lang = 'en-GB';
     utter.rate = 0.98;
-    if (naturalVoice) {
-      utter.voice = naturalVoice;
-      utter.lang = naturalVoice.lang;
+    if (selectedVoice) {
+      utter.voice = selectedVoice;
+      utter.lang = selectedVoice.lang;
     }
     utter.onend = () => { if (onEnd) onEnd(); };
     utter.onerror = () => { if (onEnd) onEnd(); };
@@ -175,6 +198,31 @@
 
   let handsFree = !isIOSSafari;
 
+  // Rebuilds the start-screen voice dropdown in place from whatever voices
+  // are currently available, without touching the rest of the intro screen.
+  // Safe to call even when that dropdown isn't on screen right now.
+  function populateVoiceSelect() {
+    const select = document.getElementById('voiceSelect');
+    if (!select) return;
+    const pool = getVoicePool();
+    if (!pool.length) {
+      select.innerHTML = '<option value="">Loading voices...</option>';
+      select.disabled = true;
+      return;
+    }
+    select.disabled = false;
+    select.innerHTML = pool.map((v, i) => {
+      const label = `${v.name} (${v.lang})${/natural|online|enhanced|premium/i.test(v.name) ? ' - natural' : ''}`;
+      return `<option value="${i}">${label}</option>`;
+    }).join('');
+    let currentIndex = selectedVoice ? pool.findIndex(v => voiceKey(v) === voiceKey(selectedVoice)) : -1;
+    if (currentIndex < 0) {
+      currentIndex = 0;
+      selectedVoice = pool[0];
+    }
+    select.value = String(currentIndex);
+  }
+
   function renderIntro() {
     const inFrame = window.top !== window.self;
     const frameWarning = (speechSupported && inFrame)
@@ -195,6 +243,13 @@
         <input type="checkbox" id="handsFreeToggle" ${handsFree ? 'checked' : ''} style="width:22px; height:22px;">
         Start listening automatically after each question
       </label>` : ''}
+      ${ttsSupported ? `
+      <label style="display:block; margin-bottom:24px; font-size:1rem; color:var(--text-dim); text-align:left;">
+        Voice used to read questions aloud
+        <select id="voiceSelect" style="display:block; width:100%; margin-top:8px; background:var(--surface-raised); color:var(--text); border:2px solid transparent; border-radius:12px; padding:12px; font-family:inherit; font-size:1.05rem;">
+          <option value="">Loading voices...</option>
+        </select>
+      </label>` : ''}
       <div class="btn-row">
         <button class="btn btn-primary" id="startBtn">Start survey</button>
       </div>
@@ -204,6 +259,16 @@
     if (speechSupported) {
       document.getElementById('handsFreeToggle').addEventListener('change', (e) => {
         handsFree = e.target.checked;
+      });
+    }
+    if (ttsSupported) {
+      populateVoiceSelect();
+      document.getElementById('voiceSelect').addEventListener('change', (e) => {
+        const pool = getVoicePool();
+        const chosen = pool[+e.target.value];
+        if (!chosen) return;
+        selectedVoice = chosen;
+        try { localStorage.setItem(PREFERRED_VOICE_KEY, voiceKey(chosen)); } catch (err) { /* ignore */ }
       });
     }
     document.getElementById('startBtn').addEventListener('click', () => {
