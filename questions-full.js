@@ -59,7 +59,7 @@
     {
       id: 'location',
       type: 'text',
-      text: 'Where did the training take place? For example, home.'
+      text: 'Where did the training take place? Say home, or say the venue name.'
     },
     {
       id: 'device-use',
