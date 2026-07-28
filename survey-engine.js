@@ -270,6 +270,13 @@
 
   let handsFree = !isIOSSafari;
 
+  // iOS Safari only permits SpeechRecognition.start() from inside a user
+  // gesture, so anything that begins listening on its own - the hands-free
+  // follow-on after a question, and the "say start survey" prompt on the
+  // intro screen - cannot work there. handsFree already accounts for this;
+  // the intro listener has to be gated the same way or it just throws.
+  const canAutoListen = speechSupported && !isIOSSafari;
+
   // Rebuilds the start-screen voice dropdown in place from whatever voices
   // are currently available, without touching the rest of the intro screen.
   // Safe to call even when that dropdown isn't on screen right now.
@@ -314,9 +321,13 @@
     const iosWarning = isIOSOtherBrowser
       ? `<div class="support-note">On iPhone and iPad, voice answers only work in Safari. This looks like a different browser, so questions will still be read aloud but spoken answers won't be picked up - please open this page in Safari, or use the on-screen options instead.</div>`
       : '';
-    const introText = speechSupported
+    const introText = canAutoListen
       ? `There are ${questions.length} short questions, read aloud with voice or on-screen answers. Say "start survey", or tap the button, to begin.`
-      : `There are ${questions.length} short questions, read aloud with on-screen answers. Tap the button to begin.`;
+      : speechSupported
+        // iOS Safari: voice answers work, but only after tapping the
+        // microphone each time, so don't promise a spoken start command.
+        ? `There are ${questions.length} short questions, read aloud. Tap the button to begin, then use the microphone button to answer by voice.`
+        : `There are ${questions.length} short questions, read aloud with on-screen answers. Tap the button to begin.`;
     card.innerHTML = `
       ${setOrb('idle')}
       <p style="font-size:1.05rem; line-height:1.6; margin-bottom:24px;">${introText}</p>
@@ -357,7 +368,7 @@
 
     if (ttsSupported) {
       speak(introText, () => {
-        if (speechSupported) startListeningForIntro();
+        if (canAutoListen) startListeningForIntro();
       });
     }
   }
@@ -490,6 +501,31 @@
     }
     return audioCtx;
   }
+
+  // iOS only lets a page start audio from inside a user gesture, and the beep
+  // is played from a recognition callback, which is never one. Without this
+  // the context is created already-suspended on iPhone/iPad and the
+  // listen-stopped tone simply never sounds. Creating it on the first tap and
+  // running a one-sample silent buffer through it unlocks playback for the
+  // rest of the session. Harmless on every other platform.
+  let audioUnlocked = false;
+  function unlockAudio() {
+    if (audioUnlocked) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    audioUnlocked = true;
+    try {
+      const source = ctx.createBufferSource();
+      source.buffer = ctx.createBuffer(1, 1, 22050);
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch (e) { /* nothing to unlock */ }
+  }
+  // Several of these fire for a single tap; the flag above keeps it to one
+  // unlock, while still catching whichever event a given browser delivers.
+  ['pointerdown', 'touchend', 'click'].forEach(evt => {
+    document.addEventListener(evt, unlockAudio, { capture: true });
+  });
 
   // A short descending two-tone "beep-boop", evoking an old phone hangup/
   // disconnect tone - played whenever listening genuinely stops (as opposed
@@ -740,6 +776,11 @@
     };
   }
 
+  // Returns false if the response could not be persisted. iOS Safari in
+  // Private Browsing (and any browser at quota) throws on setItem, and this
+  // runs at the very start of renderSummary - unguarded, that exception took
+  // out the whole summary screen, so someone who had just answered thirty
+  // questions was left on a frozen page with no answers and no download.
   function saveResponseLocally(record) {
     let stored = [];
     try {
@@ -751,7 +792,12 @@
     if (stored.length > MAX_STORED_RESPONSES) {
       stored = stored.slice(stored.length - MAX_STORED_RESPONSES);
     }
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stored));
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(stored));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   // Best-effort only: sent as text/plain (not application/json) so the
@@ -800,7 +846,7 @@
   function renderSummary() {
     progressWrap.style.display = 'none';
     const record = buildRecord();
-    saveResponseLocally(record);
+    const saved = saveResponseLocally(record);
     sendToExcelWebhook(record);
 
     let body = `${setOrb('idle')}<p class="question-text">All done - thank you</p>`;
@@ -812,14 +858,22 @@
     body += `<div class="btn-row">
       <button class="btn btn-primary" id="downloadBtn">Download my answers</button>
       <button class="btn btn-secondary" id="restartBtn">Start again</button>
-    </div>
-    <div class="support-note">
+    </div>`;
+    body += saved
+      ? `<div class="support-note">
       Prototype note: your answers are saved on this device (browser local storage) and, if a
       storage webhook has been configured, sent to an Excel table on the organisation's
       Microsoft 365 tenant. Nothing is sent anywhere else.
+    </div>`
+      : `<div class="support-note">
+      These answers could not be saved on this device - private browsing blocks it, or the
+      storage is full. They are still listed above, so please use "Download my answers"
+      before closing this page, or they will be lost.
     </div>`;
     card.innerHTML = body;
-    speak('That is everything. Here is a summary of your answers. Your answers have been saved.');
+    speak(saved
+      ? 'That is everything. Here is a summary of your answers. Your answers have been saved.'
+      : 'That is everything. Here is a summary of your answers. They could not be saved on this device, so please download them before closing this page.');
     document.getElementById('downloadBtn').addEventListener('click', () => {
       downloadCsv(recordsToCsv([record]), `voice-survey-${routeId}-${record.timestamp.replace(/[:.]/g, '-')}.csv`);
     });
