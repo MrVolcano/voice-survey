@@ -484,6 +484,14 @@
   // its handlers ignore anything that isn't the current one.
   let listenSessionId = 0;
 
+  // True from a successful recognizer.start() until its onend fires. Guards
+  // against a second start() landing while the browser's recognizer is still
+  // running (e.g. hands-free auto-listen firing just as someone taps "Listen
+  // again") - calling start() twice throws InvalidStateError synchronously,
+  // and since that throw happens before new handlers are attached, the
+  // in-flight session's real result would otherwise be silently dropped.
+  let recognizerActive = false;
+
   // One shared AudioContext, created lazily on first use and never closed.
   // Chrome caps a page at roughly six live AudioContexts, so creating a fresh
   // one per beep meant the sound silently stopped working after a handful of
@@ -599,6 +607,10 @@
 
   function startListening(q, opts) {
     if (!recognizer) return;
+    // Already listening (e.g. auto-listen fired just before a manual tap on
+    // "Listen again") - it's already doing what was asked, so leave the
+    // in-flight session alone rather than restarting it.
+    if (recognizerActive) return;
     opts = opts || {};
     const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
@@ -619,6 +631,7 @@
       notifyListeningStopped();
       return;
     }
+    recognizerActive = true;
     playListenStartSound();
 
     recognizer.onresult = (event) => {
@@ -649,6 +662,7 @@
     // emitting a no-speech error, which previously meant a timeout produced
     // no sound and no flash at all.
     recognizer.onend = () => {
+      recognizerActive = false;
       if (sessionId !== listenSessionId) return; // superseded/aborted session
       setOrbState('idle');
       if (gotResult) return;
@@ -667,6 +681,7 @@
   // Listens on the intro screen for the "start survey" voice command.
   function startListeningForIntro(opts) {
     if (!recognizer) return;
+    if (recognizerActive) return;
     opts = opts || {};
     const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
@@ -687,6 +702,7 @@
       notifyListeningStopped();
       return;
     }
+    recognizerActive = true;
     playListenStartSound();
 
     recognizer.onresult = (event) => {
@@ -714,6 +730,7 @@
     // See startListening: onend is the one event that always fires, so the
     // retry-or-stop decision has to be made here rather than in onerror.
     recognizer.onend = () => {
+      recognizerActive = false;
       if (sessionId !== listenSessionId) return;
       setOrbState('idle');
       if (handled) return;
