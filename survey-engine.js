@@ -508,7 +508,7 @@
 
     if (q.type === 'choice') {
       card.querySelectorAll('.option-btn').forEach(btn => {
-        btn.addEventListener('click', () => selectAnswer(q.options[+btn.dataset.opt]));
+        btn.addEventListener('click', () => selectOption(q, btn));
       });
     } else {
       document.getElementById('submitTextBtn').addEventListener('click', () => {
@@ -969,6 +969,23 @@
     const btn = card.querySelector(`.option-btn[data-opt="${idx}"]`);
     if (!btn) return;
     btn.classList.add('chosen', 'voice-pulse-once');
+  }
+
+  // Matches the voice-pulse-once animation's own duration (survey-styles.css)
+  // so a tapped button's fill-and-pulse feedback has time to actually play
+  // before the card re-renders for the next question.
+  const TAP_CONFIRM_DELAY_MS = 600;
+
+  // Tapping an option button gets the same fill-and-pulse feedback a matched
+  // voice answer gets (highlightMatchedOption), rather than jumping straight
+  // to the next question. All option buttons are disabled immediately so a
+  // second tap during that pause can't record a different answer or advance
+  // twice.
+  function selectOption(q, btn) {
+    if (btn.classList.contains('chosen')) return;
+    card.querySelectorAll('.option-btn').forEach(b => { b.disabled = true; });
+    btn.classList.add('chosen', 'voice-pulse-once');
+    setTimeout(() => selectAnswer(q.options[+btn.dataset.opt]), TAP_CONFIRM_DELAY_MS);
   }
 
   function selectAnswer(answerText) {
