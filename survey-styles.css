@@ -189,6 +189,17 @@ input:focus-visible {
   background: #33291A;
 }
 
+/* Marks the option a spoken answer matched, as if it had just been tapped,
+   with one pulse to draw the eye to it before the survey moves on. */
+@keyframes voice-pulse-once {
+  0% { box-shadow: 0 0 0 0 rgba(232, 163, 61, 0.55); }
+  60% { box-shadow: 0 0 0 14px rgba(232, 163, 61, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(232, 163, 61, 0); }
+}
+.option-btn.voice-pulse-once {
+  animation: voice-pulse-once 0.6s ease-out 1;
+}
+
 textarea.free-text {
   width: 100%;
   min-height: 110px;
@@ -232,7 +243,7 @@ textarea.free-text {
   50% { box-shadow: 0 0 0 8px rgba(232, 163, 61, 0.4); }
 }
 .flash-attention {
-  animation: gentle-flash 0.9s ease-in-out 3;
+  animation: gentle-flash 0.9s ease-in-out infinite;
 }
 
 /* The blanket reduced-motion rule above collapses every animation to ~0ms,
