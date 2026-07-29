@@ -338,7 +338,8 @@ textarea.free-text {
   line-height: 1.5;
 }
 
-.route-card a.btn {
+.route-card a.btn,
+.route-card button.btn {
   display: block;
   width: max-content;
   max-width: 100%;

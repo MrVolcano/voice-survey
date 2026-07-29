@@ -12,9 +12,19 @@
   const MAX_STORED_RESPONSES = 100;
   const PREFERRED_VOICE_KEY = 'voiceSurveyPreferredVoice';
 
-  const questions = window.SURVEY_QUESTIONS || [];
-  const routeId = window.SURVEY_ROUTE_ID || 'unknown';
-  const routeLabel = window.SURVEY_ROUTE_LABEL || '';
+  // Question files register themselves into SURVEY_ROUTES. With several
+  // loaded on one page (the landing page), a route-picker screen is shown
+  // first and the legacy single-survey globals are ignored - they'd only
+  // hold whichever file happened to load last. With one (the standalone
+  // survey pages), those globals drive everything, exactly as before.
+  // Keeping the picker on the same document as the survey matters on iOS:
+  // speech can only start from a tap on the current page, so the tap that
+  // picks a version doubles as the gesture that lets the intro be read aloud.
+  const routes = window.SURVEY_ROUTES || [];
+  const multiRoute = routes.length > 1;
+  let questions = multiRoute ? [] : (window.SURVEY_QUESTIONS || []);
+  let routeId = multiRoute ? 'unknown' : (window.SURVEY_ROUTE_ID || 'unknown');
+  let routeLabel = multiRoute ? '' : (window.SURVEY_ROUTE_LABEL || '');
 
   const card = document.getElementById('card');
   const progressWrap = document.getElementById('progressWrap');
@@ -155,19 +165,74 @@
     setTimeout(() => { liveRegion.textContent = msg; }, 50);
   }
 
+  // Each speak() claims a token; a later speak() invalidates every callback
+  // from earlier ones. Safari fires onend/onerror even for utterances that
+  // were cancelled mid-sentence, and the callbacks here chain follow-on
+  // actions (listen, next question), so without this a cancelled utterance
+  // could spawn a second speech/listen chain running alongside the real one.
+  let speakToken = 0;
+
+  // Safari and Chrome can both garbage-collect an in-flight utterance,
+  // silently dropping its onend - keeping a reference pins it.
+  let currentUtterance = null;
+
+  // True once any utterance has audibly started. Used to detect the iOS
+  // case where the intro speak() on page load was blocked for lack of a
+  // user gesture, so the first tap can retry it (see unlockAudio).
+  let speechHasStarted = false;
+
   function speak(text, onEnd) {
     if (!window.speechSynthesis) { if (onEnd) onEnd(); return; }
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'en-GB';
-    utter.rate = 0.98;
-    if (selectedVoice) {
-      utter.voice = selectedVoice;
-      utter.lang = selectedVoice.lang;
+    const synth = window.speechSynthesis;
+    const token = ++speakToken;
+    synth.cancel();
+
+    const startSpeaking = () => {
+      if (token !== speakToken) return; // superseded by a later speak()
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'en-GB';
+      utter.rate = 0.98;
+      if (selectedVoice) {
+        utter.voice = selectedVoice;
+        utter.lang = selectedVoice.lang;
+      }
+      utter.onstart = () => { speechHasStarted = true; };
+      // Safari can fire both onerror and onend for the same utterance, so
+      // the follow-on action must only run once.
+      let finished = false;
+      const finish = () => {
+        if (finished) return;
+        finished = true;
+        if (token !== speakToken) return;
+        if (onEnd) onEnd();
+      };
+      utter.onend = finish;
+      utter.onerror = finish;
+      currentUtterance = utter;
+      // iOS Safari can leave the synthesizer paused after a cancel; a paused
+      // synth swallows the next utterance entirely.
+      if (synth.paused && synth.resume) synth.resume();
+      synth.speak(utter);
+    };
+
+    // Safari sometimes ignores cancel() for the utterance it is currently
+    // voicing when speak() follows in the same tick, so both end up playing
+    // at once. Waiting until the synth is genuinely idle (bounded, in case
+    // the flags stick) avoids the overlap; Chrome goes idle immediately and
+    // takes the fast path.
+    if (synth.speaking || synth.pending) {
+      let waited = 0;
+      const poll = setInterval(() => {
+        if (token !== speakToken) { clearInterval(poll); return; }
+        waited += 50;
+        if ((!synth.speaking && !synth.pending) || waited >= 500) {
+          clearInterval(poll);
+          startSpeaking();
+        }
+      }, 50);
+    } else {
+      startSpeaking();
     }
-    utter.onend = () => { if (onEnd) onEnd(); };
-    utter.onerror = () => { if (onEnd) onEnd(); };
-    window.speechSynthesis.speak(utter);
   }
 
   function setOrb(state) {
@@ -270,6 +335,11 @@
 
   let handsFree = !isIOSSafari;
 
+  // Re-runs the intro speech (set whenever the intro screen is showing).
+  // Exists so the first-tap unlock below can retry it on iOS, where the
+  // page-load attempt is blocked for not being inside a user gesture.
+  let pendingIntroSpeech = null;
+
   // iOS Safari only permits SpeechRecognition.start() from inside a user
   // gesture, so anything that begins listening on its own - the hands-free
   // follow-on after a question, and the "say start survey" prompt on the
@@ -303,6 +373,7 @@
   }
 
   function beginSurvey() {
+    pendingIntroSpeech = null;
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     // Invalidate any in-flight listen first, so the abort below doesn't reach
     // handlers that would announce a stop or kick off a retry.
@@ -311,6 +382,38 @@
     current = 0;
     answers.length = 0;
     askQuestion();
+  }
+
+  // Landing-page screen: pick which survey version to run. Selection uses
+  // buttons in this same document rather than links to separate pages, so
+  // that on iOS the selection tap itself unlocks speech and the intro that
+  // follows is actually read aloud (see the route notes at the top).
+  function renderRouteSelect() {
+    pendingIntroSpeech = null;
+    card.innerHTML = `
+      <p class="intro-lead">Pick a version to start.</p>
+      <div class="route-list">
+        ${routes.map((r, i) => `
+        <div class="route-card">
+          <h2>${r.label}</h2>
+          <p>${r.description || ''}</p>
+          <button class="btn btn-primary" data-route="${i}">${r.label}</button>
+        </div>`).join('')}
+      </div>
+    `;
+    card.querySelectorAll('button[data-route]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const route = routes[+btn.dataset.route];
+        if (!route) return;
+        questions = route.questions;
+        routeId = route.id;
+        routeLabel = route.label;
+        if (progressLabel) progressLabel.setAttribute('data-route', routeLabel);
+        // Called synchronously from the tap so the intro speech that
+        // renderIntro kicks off counts as gesture-initiated on iOS.
+        renderIntro();
+      });
+    });
   }
 
   function renderIntro() {
@@ -367,9 +470,12 @@
     document.getElementById('startBtn').addEventListener('click', beginSurvey);
 
     if (ttsSupported) {
-      speak(introText, () => {
-        if (canAutoListen) startListeningForIntro();
-      });
+      pendingIntroSpeech = () => {
+        speak(introText, () => {
+          if (canAutoListen) startListeningForIntro();
+        });
+      };
+      pendingIntroSpeech();
     }
   }
 
@@ -521,6 +627,7 @@
   // rest of the session. Harmless on every other platform.
   let audioUnlocked = false;
   function unlockAudio() {
+    unlockSpeech();
     if (audioUnlocked) return;
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -531,6 +638,27 @@
       source.connect(ctx.destination);
       source.start(0);
     } catch (e) { /* nothing to unlock */ }
+  }
+
+  // The same gesture rule applies to speech synthesis on iOS: a speak() that
+  // doesn't trace back to a tap on this page is silently dropped, which is
+  // exactly what happens to the intro read out on page load (the tap that
+  // navigated here belonged to the previous page). So if nothing has audibly
+  // spoken yet by the time the first tap lands, redo the intro speech inside
+  // that gesture - or, if no intro is pending, push a token utterance through
+  // to unlock speak() for the rest of the session. No-op everywhere speech
+  // already works, since speechHasStarted is set by then.
+  function unlockSpeech() {
+    if (!window.speechSynthesis || speechHasStarted) return;
+    // The unlock has to be a synchronous speak() inside the gesture handler -
+    // the intro retry below goes through speak(), which may defer its actual
+    // speak() call to a timer (see the overlap workaround there), and a timer
+    // callback no longer counts as gesture context on iOS.
+    try {
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+    } catch (e) { /* nothing to unlock */ }
+    if (pendingIntroSpeech) pendingIntroSpeech();
   }
   // Several of these fire for a single tap; the flag above keeps it to one
   // unlock, while still catching whichever event a given browser delivers.
@@ -982,7 +1110,11 @@
   };
 
   if (card) {
-    renderIntro();
+    if (multiRoute) {
+      renderRouteSelect();
+    } else {
+      renderIntro();
+    }
     if (progressLabel) {
       progressLabel.setAttribute('data-route', routeLabel);
     }
