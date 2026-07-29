@@ -4,9 +4,9 @@ A voice-enabled survey collection prototype for AbilityNet's post-training feedb
 
 ## What's here
 
-- `index.html` — landing page, links to the two prototype routes below.
-- `full-survey.html` — Long version: every outcome and every new-ability question from the real survey is asked individually by voice. ~30 questions.
-- `open-survey.html` — Short version: the same outcomes/abilities are covered by two open questions instead. ~10 questions.
+- `index.html` — landing page; the version picker and the survey itself run in this one page. Keeping them in the same document matters on iPhone/iPad, where speech can only start from a tap on the current page — the tap that picks a version doubles as the gesture that lets the instructions be read aloud.
+- `full-survey.html` — Long version: every outcome and every new-ability question from the real survey is asked individually by voice. ~30 questions. Still works as a direct link; on iOS the instructions are read out on the first tap rather than on load.
+- `open-survey.html` — Short version: the same outcomes/abilities are covered by two open questions instead. ~10 questions. Same direct-link behaviour as above.
 - `survey-engine.js` — shared engine (text-to-speech, speech recognition, fuzzy answer matching, rendering, storage) used by all three pages.
 - `questions-full.js` / `questions-open.js` — the two question sets, loaded before `survey-engine.js`.
 - `survey-styles.css` — shared styling.

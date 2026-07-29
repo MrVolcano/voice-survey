@@ -7,31 +7,23 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="survey-styles.css?v=9">
+<link rel="stylesheet" href="survey-styles.css?v=10">
 </head>
 <body>
 
 <div class="app">
   <header class="top">
     <h1>Voice Feedback Survey</h1>
-    <span class="version-tag">v8</span>
+    <span class="version-tag">v9</span>
   </header>
 
-  <main class="card">
-    <p class="intro-lead">Pick a version to start.</p>
+  <div id="progressWrap" style="display:none;">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel"></div>
+  </div>
 
-    <div class="route-list">
-      <div class="route-card">
-        <h2>Long version</h2>
-        <p>Every question, one at a time (~30 questions).</p>
-        <a class="btn btn-primary" href="full-survey.html">Long version</a>
-      </div>
-      <div class="route-card">
-        <h2>Short version</h2>
-        <p>Two open questions (~10 questions).</p>
-        <a class="btn btn-primary" href="open-survey.html">Short version</a>
-      </div>
-    </div>
+  <main class="card" id="card">
+    <!-- version picker and survey injected by JS -->
   </main>
 
   <div aria-live="polite" class="sr-only" id="liveRegion"></div>
@@ -49,7 +41,9 @@
   </footer>
 </div>
 
-<script src="survey-engine.js?v=9"></script>
+<script src="questions-full.js?v=10"></script>
+<script src="questions-open.js?v=10"></script>
+<script src="survey-engine.js?v=10"></script>
 <script>
   document.getElementById('exportAllBtn').addEventListener('click', () => {
     window.voiceSurveyStorage.exportAllLocalResponses();

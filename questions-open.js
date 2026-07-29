@@ -60,4 +60,15 @@
       text: 'Anything else you would like to tell us about the trainer or the sessions?'
     }
   ];
+
+  // Also register in the shared route list, for pages (the landing page)
+  // that load several question files and show a version picker. Captured
+  // here, before another question file can overwrite the globals above.
+  window.SURVEY_ROUTES = window.SURVEY_ROUTES || [];
+  window.SURVEY_ROUTES.push({
+    id: window.SURVEY_ROUTE_ID,
+    label: window.SURVEY_ROUTE_LABEL,
+    description: 'Two open questions (~10 questions).',
+    questions: window.SURVEY_QUESTIONS
+  });
 })();
