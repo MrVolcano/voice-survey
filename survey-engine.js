@@ -391,10 +391,7 @@
     }
 
     body += `<div class="btn-row" style="margin-top:8px;">`;
-    if (speechSupported) {
-      body += `<button class="btn btn-primary" id="micBtn">${handsFree ? 'Listen again' : 'Use microphone'}</button>`;
-    }
-    body += `<button class="btn btn-secondary" id="repeatBtn">Repeat question</button>`;
+    body += `<button class="btn ${speechSupported ? 'btn-primary' : 'btn-secondary'}" id="repeatBtn">Repeat question</button>`;
     body += `</div>`;
 
     if (q.type === 'text') {
@@ -414,13 +411,18 @@
       });
     }
 
-    document.getElementById('repeatBtn').addEventListener('click', () => readQuestionAloud(q));
-
-    if (speechSupported) {
-      document.getElementById('micBtn').addEventListener('click', () => startListening(q));
-    }
+    document.getElementById('repeatBtn').addEventListener('click', () => repeatQuestion(q));
 
     readQuestionAloud(q);
+  }
+
+  // Re-reads the question - reminding the person of their options along the
+  // way - and, since asking to hear it again is itself a request to have
+  // another go, always starts listening afterward when voice input is
+  // available (independent of the hands-free setting, which only governs
+  // the very first listen after a question appears).
+  function repeatQuestion(q) {
+    readQuestionAloud(q, { forceListen: speechSupported });
   }
 
   // Reads as a natural spoken list: a comma (a slight pause) between each
@@ -431,7 +433,8 @@
     return options.slice(0, -1).join(', ') + ' or ' + options[options.length - 1];
   }
 
-  function readQuestionAloud(q) {
+  function readQuestionAloud(q, opts) {
+    opts = opts || {};
     setOrbState('speaking');
     let toSay = q.text;
     if (q.type === 'choice' && q.announceOptions !== false) {
@@ -439,7 +442,7 @@
     }
     speak(toSay, () => {
       setOrbState('idle');
-      if (handsFree && speechSupported) {
+      if (speechSupported && (opts.forceListen || handsFree)) {
         // Small pause so it doesn't feel like it's cutting the person off
         // mid-breath the instant the question finishes.
         setTimeout(() => startListening(q), 500);
@@ -483,6 +486,14 @@
   // could otherwise fire the wrong callbacks. Each listen claims an id and
   // its handlers ignore anything that isn't the current one.
   let listenSessionId = 0;
+
+  // True from a successful recognizer.start() until its onend fires. Guards
+  // against a second start() landing while the browser's recognizer is still
+  // running (e.g. hands-free auto-listen firing just as someone taps "Listen
+  // again") - calling start() twice throws InvalidStateError synchronously,
+  // and since that throw happens before new handlers are attached, the
+  // in-flight session's real result would otherwise be silently dropped.
+  let recognizerActive = false;
 
   // One shared AudioContext, created lazily on first use and never closed.
   // Chrome caps a page at roughly six live AudioContexts, so creating a fresh
@@ -594,11 +605,15 @@
   // person to tap a button to continue (as opposed to us auto-retrying).
   function notifyListeningStopped() {
     playListenStoppedSound();
-    flashButtonForAttention(document.getElementById('micBtn') || document.getElementById('startBtn'));
+    flashButtonForAttention(document.getElementById('repeatBtn') || document.getElementById('startBtn'));
   }
 
   function startListening(q, opts) {
     if (!recognizer) return;
+    // Already listening (e.g. auto-listen fired just before a manual tap on
+    // "Listen again") - it's already doing what was asked, so leave the
+    // in-flight session alone rather than restarting it.
+    if (recognizerActive) return;
     opts = opts || {};
     const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
@@ -619,6 +634,7 @@
       notifyListeningStopped();
       return;
     }
+    recognizerActive = true;
     playListenStartSound();
 
     recognizer.onresult = (event) => {
@@ -649,6 +665,7 @@
     // emitting a no-speech error, which previously meant a timeout produced
     // no sound and no flash at all.
     recognizer.onend = () => {
+      recognizerActive = false;
       if (sessionId !== listenSessionId) return; // superseded/aborted session
       setOrbState('idle');
       if (gotResult) return;
@@ -667,6 +684,7 @@
   // Listens on the intro screen for the "start survey" voice command.
   function startListeningForIntro(opts) {
     if (!recognizer) return;
+    if (recognizerActive) return;
     opts = opts || {};
     const retriesLeft = opts.retriesLeft === undefined ? NO_SPEECH_RETRY_LIMIT : opts.retriesLeft;
 
@@ -687,6 +705,7 @@
       notifyListeningStopped();
       return;
     }
+    recognizerActive = true;
     playListenStartSound();
 
     recognizer.onresult = (event) => {
@@ -714,6 +733,7 @@
     // See startListening: onend is the one event that always fires, so the
     // retry-or-stop decision has to be made here rather than in onerror.
     recognizer.onend = () => {
+      recognizerActive = false;
       if (sessionId !== listenSessionId) return;
       setOrbState('idle');
       if (handled) return;
@@ -747,7 +767,25 @@
     return /\bnext\b/i.test(transcript.trim());
   }
 
+  // Catches "repeat question", "repeat that", "say that again", "I didn't
+  // catch that", "come again", "what was that" and similar phrases spoken
+  // in place of an answer, so asking to hear the question again works from
+  // voice alone and not just the button.
+  function isRepeatCommand(transcript) {
+    const t = transcript.trim().toLowerCase();
+    return /\brepeat\b/.test(t) ||
+      /\bsay (that|it) again\b/.test(t) ||
+      /\b(didn'?t|did ?not) (catch|hear|get) that\b/.test(t) ||
+      /\bcome again\b/.test(t) ||
+      /\bone more time\b/.test(t) ||
+      /\bwhat was that\b/.test(t);
+  }
+
   function handleVoiceResult(q, transcript) {
+    if (isRepeatCommand(transcript)) {
+      repeatQuestion(q);
+      return;
+    }
     if (q.type === 'text') {
       const field = document.getElementById('freeText');
       if (field) field.value = transcript;
@@ -776,6 +814,10 @@
   // Follow-up listen after a free-text answer: "next" submits it, anything
   // else is treated as a re-spoken replacement and prompted again.
   function handleTextConfirmResult(q, transcript) {
+    if (isRepeatCommand(transcript)) {
+      repeatQuestion(q);
+      return;
+    }
     if (isNextCommand(transcript)) {
       const field = document.getElementById('freeText');
       const val = field ? field.value.trim() : '';
