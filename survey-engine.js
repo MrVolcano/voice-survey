@@ -550,12 +550,38 @@
     } catch (e) { /* Web Audio unavailable - the button flash still shows */ }
   }
 
+  // A short single tone played the instant listening actually opens, so
+  // someone isn't left guessing when to start talking (particularly useful
+  // with eyes closed, since the "Listening..." state is otherwise only
+  // visual/on-screen until the live-region announcement catches up).
+  function playListenStartSound() {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    } catch (e) { /* Web Audio unavailable - listening still starts */ }
+  }
+
   // Briefly pulses a button's outline so someone glancing back at the screen
   // after listening has stopped can see exactly where to tap. The class is
   // cleared on a timer rather than only on animationend, because under
   // prefers-reduced-motion the animation is suppressed (and replaced by a
   // steady highlight in CSS), so animationend may never fire.
-  const FLASH_DURATION_MS = 2700; // 3 x 0.9s, matching the CSS animation
+  // The CSS animation itself repeats indefinitely (needed since there's no
+  // pure-CSS way to say "repeat for this many seconds, how ever many beats
+  // that takes"); this timeout is what actually stops it, after a full
+  // minute of pulsing.
+  const FLASH_DURATION_MS = 60000;
   function flashButtonForAttention(btn) {
     if (!btn) return;
     btn.classList.remove('flash-attention');
@@ -593,6 +619,7 @@
       notifyListeningStopped();
       return;
     }
+    playListenStartSound();
 
     recognizer.onresult = (event) => {
       if (sessionId !== listenSessionId) return;
@@ -660,6 +687,7 @@
       notifyListeningStopped();
       return;
     }
+    playListenStartSound();
 
     recognizer.onresult = (event) => {
       if (sessionId !== listenSessionId) return;
@@ -738,6 +766,7 @@
       box.className = 'transcript-box';
       box.innerHTML = `Heard: <strong>${transcript}</strong> - matched to <strong>${match}</strong>`;
       card.insertBefore(box, card.querySelector('.btn-row'));
+      highlightMatchedOption(q, match);
       speak('I heard ' + match + '. Confirming that answer.', () => selectAnswer(match));
     } else {
       speak('Sorry, I did not catch a clear answer. Let\'s try again.', () => startListening(q));
@@ -758,6 +787,18 @@
     speak('I heard: ' + transcript + '. Re-speak your response if incorrect, or say next to continue.', () => {
       startListening(q, { confirmText: true });
     });
+  }
+
+  // Gives the same visual feedback a tap would have, for the brief window
+  // between a spoken answer being matched and the "confirming that answer"
+  // line finishing (selectAnswer, and the re-render it triggers, only
+  // happens once that speech ends).
+  function highlightMatchedOption(q, match) {
+    const idx = q.options.indexOf(match);
+    if (idx < 0) return;
+    const btn = card.querySelector(`.option-btn[data-opt="${idx}"]`);
+    if (!btn) return;
+    btn.classList.add('chosen', 'voice-pulse-once');
   }
 
   function selectAnswer(answerText) {

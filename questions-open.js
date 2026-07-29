@@ -36,7 +36,7 @@
     {
       id: 'outcomes-open',
       type: 'text',
-      text: 'What has changed for you since the sessions? For example, more confident, more independent, or less isolated.'
+      text: 'What has changed for you since the sessions? For example, are you more confident, more independent, or less isolated.'
     },
     {
       id: 'abilities-open',

@@ -44,7 +44,10 @@
     id: `ability-${i}`,
     type: 'choice',
     text: `Can you now ${phrase}?`,
-    options: YES_NO
+    options: YES_NO,
+    // Plain yes/no - it's clear from the question alone what the answer can
+    // be, so reading the options aloud every time is just noise.
+    announceOptions: false
   }));
 
   window.SURVEY_ROUTE_ID = 'full';
@@ -89,7 +92,8 @@
       id: 'bt-funding',
       type: 'choice',
       text: 'These sessions were funded by BT. Does that change how you see BT?',
-      options: ['Yes', 'No']
+      options: ['Yes', 'No'],
+      announceOptions: false
     },
     {
       id: 'bt-funding-why',
